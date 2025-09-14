@@ -2,20 +2,31 @@
 const socket = io("https://sanngokudoumei.onrender.com/");
 
 const chatDiv = document.getElementById("chat");
-const input = document.getElementById("messageInput");
+const nameInput = document.getElementById("nameInput");
+const messageInput = document.getElementById("messageInput");
 const sendBtn = document.getElementById("sendBtn");
 
+let messageCount = 0;
+
 sendBtn.addEventListener("click", () => {
-  const msg = input.value;
-  if (msg.trim() !== "") {
-    socket.emit("chat message", msg);
-    input.value = "";
+  const name = nameInput.value.trim() || "名無しさん";
+  const msg = messageInput.value.trim();
+  if (msg !== "") {
+    socket.emit("chat message", { name, msg });
+    messageInput.value = "";
   }
 });
 
-socket.on("chat message", (msg) => {
-  const p = document.createElement("p");
-  p.textContent = msg;
-  chatDiv.appendChild(p);
+socket.on("chat message", (data) => {
+  messageCount++;
+  const div = document.createElement("div");
+  div.className = "message";
+  const now = new Date();
+  const time = `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+  div.innerHTML = `<span class="number">No.${messageCount}</span>
+                   <span class="name">${data.name}</span>
+                   ${data.msg}
+                   <span class="time">(${time})</span>`;
+  chatDiv.appendChild(div);
   chatDiv.scrollTop = chatDiv.scrollHeight;
 });
