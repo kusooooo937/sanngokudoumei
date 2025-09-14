@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>リアルタイムチャット</title>
+  <style>
+    body { background:#111; color:#fff; font-family:sans-serif; text-align:center; }
+    #chat { width: 400px; height: 300px; border:2px solid white; margin:20px auto; overflow-y:auto; padding:10px; background:#222; }
+    input { padding:8px; width:300px; }
+    button { padding:8px; }
+  </style>
+</head>
+<body>
+  <h1>リアルタイムチャット</h1>
+  <div id="chat"></div>
+  <input id="messageInput" type="text" placeholder="メッセージを入力...">
+  <button id="sendBtn">送信</button>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="chat.js"></script>
+</body>
+</html>
