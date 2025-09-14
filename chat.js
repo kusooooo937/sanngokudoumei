@@ -1,5 +1,5 @@
 // 🌍 Render が発行したURLをここに書く！ (例: https://my-chat-app.onrender.com)
-const socket = io("https://my-chat-app.onrender.com");
+const socket = io("https://sanngokudoumei.onrender.com/");
 
 const chatDiv = document.getElementById("chat");
 const input = document.getElementById("messageInput");
