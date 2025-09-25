@@ -1,5 +1,5 @@
 // 🌍 Render の URL に置き換える
-const socket = io("https://my-chat-app.onrender.com");
+const socket = io("https://sanngokudoumei.onrender.com/");
 
 const chatDiv = document.getElementById("chat");
 const roomInput = document.getElementById("roomInput");
