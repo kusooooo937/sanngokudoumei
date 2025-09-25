@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>2ch風チャット（部屋あり）</title>
+  <title>2ch風チャット（ホーム→部屋）</title>
   <style>
     body { font-family: monospace; background:#fff; color:#000; margin:0; padding:0; }
     #chat { width:90%; max-width:800px; height:60vh; margin:20px auto; border:1px solid #ccc;
@@ -20,16 +20,23 @@
   </style>
 </head>
 <body>
-  <h1 style="text-align:center;">2ch風チャット（部屋機能付き）</h1>
-  <div style="text-align:center; margin:10px;">
-    部屋名: <input id="roomInput" type="text" value="main">
-    <button onclick="joinRoom()">入室</button>
+  <h1 style="text-align:center;">2ch風チャット</h1>
+
+  <!-- ホーム画面 -->
+  <div id="home" style="text-align:center; margin:10px;">
+    部屋名を入力して入室してください:
+    <input id="homeRoomInput" type="text" placeholder="部屋名">
+    <button id="joinBtn">入室</button>
   </div>
-  <div id="chat"></div>
-  <div id="inputArea">
-    <input id="nameInput" type="text" placeholder="名前">
-    <input id="messageInput" type="text" placeholder="書き込み…">
-    <button id="sendBtn">書き込む</button>
+
+  <!-- チャット画面（最初は非表示） -->
+  <div id="chatContainer" style="display:none;">
+    <div id="chat"></div>
+    <div id="inputArea">
+      <input id="nameInput" type="text" placeholder="名前">
+      <input id="messageInput" type="text" placeholder="書き込み…">
+      <button id="sendBtn">書き込む</button>
+    </div>
   </div>
 
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
