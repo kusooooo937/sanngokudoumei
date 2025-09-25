@@ -46,7 +46,7 @@ io.on("connection", (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 3000;  // ← 10000固定はNG
+const PORT = process.env.PORT || 10000;  // ← 10000固定はNG
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
