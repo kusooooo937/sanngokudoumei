@@ -1,46 +1,66 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-const multer = require("multer");
-const path = require("path");
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
 
-const upload = multer({ dest: "uploads/" });
+// CORS対応
+app.use(cors({
+  origin: '*', // GitHub Pagesや他のクライアントからアクセス可能に
+  methods: ['GET','POST']
+}));
 
-// 静的ファイル公開
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+// 静的ファイルの配信（アップロード画像/動画用）
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// ファイルアップロードAPI
-app.post("/upload", upload.single("file"), (req, res) => {
-  const fileUrl = `/uploads/${req.file.filename}`;
-  res.json({ url: fileUrl });
+// Multer設定
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage });
+
+// 画像/動画アップロードAPI
+app.post('/upload', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'ファイルなし' });
+  res.json({ url: `/uploads/${req.file.filename}` });
 });
 
-// メモリ上で過去ログ保持（簡易）
-const rooms = {};
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET','POST']
+  }
+});
 
-// Socket.IO処理
-io.on("connection", (socket) => {
-  console.log("✅ ユーザー接続");
+// 部屋ごとの接続
+io.on('connection', (socket) => {
+  console.log('ユーザー接続');
 
-  socket.on("join room", (room) => {
+  socket.on('joinRoom', (room) => {
     socket.join(room);
-    if (!rooms[room]) rooms[room] = [];
-    socket.emit("chat history", rooms[room]);
-    console.log(`➡️ ${socket.id} joined room: ${room}`);
+    console.log(`${socket.id} joined ${room}`);
   });
 
-  socket.on("chat message", (data) => {
-    data.time = Date.now();
-    if (!rooms[data.room]) rooms[data.room] = [];
-    rooms[data.room].push(data);
-    io.to(data.room).emit("chat message", data);
+  socket.on('chatMessage', (data) => {
+    // data: { room, name, text, fileUrl }
+    io.to(data.room).emit('chatMessage', data);
   });
 
-  socket.on("disconnect", () => console.log("❌ ユーザー切断"));
+  socket.on('disconnect', () => {
+    console.log('ユーザー切断');
+  });
 });
 
 const PORT = process.env.PORT || 10000;
