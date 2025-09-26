@@ -10,7 +10,7 @@ const io = new Server(httpServer, {
 
 app.use(express.static('public'));
 
-const messages = {}; // { roomName: [{id,msg,name,time},...] }
+const messages = {}; // { roomName: [{id,msg,name,file,fileType,time},...] }
 const anonymousCounters = {}; // { roomName: lastAnonymousId }
 
 io.on('connection', (socket) => {
@@ -33,6 +33,7 @@ io.on('connection', (socket) => {
         };
         io.to(room).emit('message', joinMsg);
 
+        // 過去履歴を送信
         socket.emit('history', messages[room]);
     });
 
@@ -48,14 +49,16 @@ io.on('connection', (socket) => {
         }
 
         const msgObj = {
-            id: socket.id.substring(0,4), // 簡易ID
+            id: socket.id.substring(0,4),
             name,
-            msg: data.msg,
+            msg: data.msg || '',
+            file: data.file || null,
+            fileType: data.fileType || null,
             time: new Date().toLocaleTimeString()
         };
 
         messages[room].push(msgObj);
-        if (messages[room].length > 100) messages[room].shift(); // 100件まで
+        if (messages[room].length > 100) messages[room].shift();
 
         io.to(room).emit('message', msgObj);
     });
