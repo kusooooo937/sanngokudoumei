@@ -1,59 +1,68 @@
-const socket = io('https://sanngokudoumei.onrender.com'); // サーバーURL
-let currentRoom = '';
+let socket = io('https://sanngokudoumei.onrender.com'); // あなたのサーバーURL
+let currentRoom = null;
+
+const chat = document.getElementById('chat');
+const home = document.getElementById('home');
+const chatContainer = document.getElementById('chatContainer');
+const joinBtn = document.getElementById('joinBtn');
+const homeRoomInput = document.getElementById('homeRoomInput');
+const nameInput = document.getElementById('nameInput');
+const messageInput = document.getElementById('messageInput');
+const sendBtn = document.getElementById('sendBtn');
+const fileInput = document.getElementById('fileInput');
 
 // 入室
-document.getElementById('joinBtn').addEventListener('click', () => {
-  const room = document.getElementById('homeRoomInput').value.trim();
+joinBtn.addEventListener('click', () => {
+  const room = homeRoomInput.value.trim();
   if (!room) return alert('部屋名を入力してください');
   currentRoom = room;
-  socket.emit('joinRoom', room);
-  document.getElementById('home').style.display = 'none';
-  document.getElementById('chatContainer').style.display = 'block';
-});
-
-// ホームへ戻る
-document.getElementById('backHome').addEventListener('click', () => {
-  document.getElementById('chatContainer').style.display = 'none';
-  document.getElementById('home').style.display = 'block';
-  currentRoom = '';
+  socket.emit('joinRoom', currentRoom);
+  home.style.display = 'none';
+  chatContainer.style.display = 'block';
+  chat.innerHTML = '';
 });
 
 // メッセージ送信
-document.getElementById('sendBtn').addEventListener('click', async () => {
-  const name = document.getElementById('nameInput').value.trim();
-  const text = document.getElementById('messageInput').value.trim();
-  const fileInput = document.getElementById('fileInput');
-  let fileUrl = '';
+sendBtn.addEventListener('click', () => {
+  const name = nameInput.value.trim();
+  const text = messageInput.value.trim();
+  if (!name || (!text && fileInput.files.length === 0)) return;
+
+  const msgData = { room: currentRoom, name, text, time: new Date().toLocaleTimeString() };
 
   if (fileInput.files.length > 0) {
-    const formData = new FormData();
-    formData.append('file', fileInput.files[0]);
-    const res = await fetch('https://sanngokudoumei.onrender.com/upload', { method: 'POST', body: formData });
-    const data = await res.json();
-    fileUrl = 'https://sanngokudoumei.onrender.com' + data.url;
-    fileInput.value = '';
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      msgData.file = reader.result;
+      socket.emit('chatMessage', msgData);
+    };
+    reader.readAsDataURL(file);
+  } else {
+    socket.emit('chatMessage', msgData);
   }
 
-  if (!name && !text && !fileUrl) return alert('何か入力してください');
-
-  socket.emit('chatMessage', { room: currentRoom, name, text, fileUrl });
-  document.getElementById('messageInput').value = '';
+  messageInput.value = '';
+  fileInput.value = '';
 });
 
 // メッセージ受信
-socket.on('chatMessage', data => {
-  const chat = document.getElementById('chat');
+function appendMessage(data) {
   const div = document.createElement('div');
-  div.classList.add('message');
-
-  let content = '';
-  if (data.text) content += `<span class="name">${data.name}:</span> ${data.text} `;
-  if (data.fileUrl) {
-    if (data.fileUrl.match(/\.(jpg|jpeg|png|gif)$/i)) content += `<br><img src="${data.fileUrl}" style="max-width:200px;">`;
-    if (data.fileUrl.match(/\.(mp4|webm)$/i)) content += `<br><video src="${data.fileUrl}" controls style="max-width:300px;"></video>`;
+  div.className = 'message';
+  let content = `<span class="time">[${data.time}]</span> <span class="name">${data.name}:</span> `;
+  if (data.text) content += data.text;
+  if (data.file) {
+    if (data.file.startsWith('data:image')) {
+      content += `<br><img src="${data.file}" style="max-width:200px;">`;
+    } else if (data.file.startsWith('data:video')) {
+      content += `<br><video src="${data.file}" controls style="max-width:300px;"></video>`;
+    }
   }
-
   div.innerHTML = content;
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
-});
+}
+
+socket.on('chatMessage', appendMessage);
+socket.on('chatHistory', (messages) => messages.forEach(appendMessage));
