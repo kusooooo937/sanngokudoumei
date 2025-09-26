@@ -12,36 +12,34 @@
     .name { color:#0066cc; margin-right:10px; }
     .time { color:#888; margin-left:10px; }
     #inputArea { width:90%; max-width:800px; margin:0 auto 20px; display:flex; gap:10px; }
-    #roomInput, #nameInput, #messageInput { padding:8px; font-family:monospace; }
-    #roomInput { width:100px; }
-    #nameInput { width:120px; }
+    #nameInput, #messageInput, #fileInput { padding:8px; font-family:monospace; }
     #messageInput { flex:1; }
     #sendBtn { padding:8px 16px; font-family:monospace; }
   </style>
 </head>
 <body>
-  <h1 style="text-align:center;">チャット</h1>
+<h1 style="text-align:center;">チャット</h1>
 
-  <!-- ホーム画面 -->
-  <div id="home" style="text-align:center; margin:10px;">
-    部屋名を入力して入室してください:
-    <input id="homeRoomInput" type="text" placeholder="部屋名">
-    <button id="joinBtn">入室</button>
+<!-- ホーム画面 -->
+<div id="home" style="text-align:center; margin:10px;">
+  部屋名を入力して入室してください:
+  <input id="homeRoomInput" type="text" placeholder="部屋名">
+  <button id="joinBtn">入室</button>
+</div>
+
+<!-- チャット画面 -->
+<div id="chatContainer" style="display:none;">
+  <div id="chat"></div>
+  <div id="inputArea">
+    <input id="nameInput" type="text" placeholder="名前">
+    <input id="messageInput" type="text" placeholder="書き込み…">
+    <input id="fileInput" type="file" accept="image/*,video/*">
+    <button id="sendBtn">送信</button>
   </div>
+  <p style="text-align:center;"><a href="#" id="backHome">ホームへ戻る</a></p>
+</div>
 
-  <!-- チャット画面（最初は非表示） -->
-  <div id="chatContainer" style="display:none;">
-    <div id="chat"></div>
-    <div id="inputArea">
-  <input id="nameInput" type="text" placeholder="名前">
-  <input id="messageInput" type="text" placeholder="書き込み…">
-  <input id="fileInput" type="file" accept="image/*,video/*">
-  <button id="sendBtn">書き込む</button>
-      <p><a href="https://kusooooo937.github.io/sanngokudoumei/" taraget="_blank">ホーム</a></p>
-    </div>
-  </div>
-
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-  <script src="chat.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="chat.js"></script>
 </body>
 </html>
