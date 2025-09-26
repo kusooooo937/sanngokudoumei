@@ -1,88 +1,59 @@
-// server.js
-import express from 'express';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
+// Render にデプロイしたサーバーURLに差し替える
+const socket = io("https://sanngokudoumei.onrender.com/");
 
-const app = express();
-const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: {
-    origin: "*",   // GitHub Pages からのアクセスを許可
-    methods: ["GET", "POST"]
+const joinBtn = document.getElementById("joinBtn");
+const roomInput = document.getElementById("roomInput");
+const nameInput = document.getElementById("nameInput");
+const msgInput = document.getElementById("msgInput");
+const sendBtn = document.getElementById("sendBtn");
+const chatArea = document.getElementById("chat");
+
+joinBtn.onclick = () => {
+  const room = roomInput.value.trim();
+  if (!room) return alert("部屋名を入力してください");
+  socket.emit("joinRoom", room);
+};
+
+sendBtn.onclick = () => {
+  const msg = msgInput.value.trim();
+  if (!msg) return;
+  socket.emit("message", { name: nameInput.value, msg });
+  msgInput.value = "";
+};
+
+// 画像送信
+function sendImage(base64) {
+  socket.emit("image", { name: nameInput.value, url: base64 });
+}
+
+// 動画送信
+function sendVideo(url) {
+  socket.emit("video", { name: nameInput.value, url });
+}
+
+// 履歴表示
+socket.on("history", (msgs) => {
+  chatArea.innerHTML = "";
+  msgs.forEach(renderMessage);
+});
+
+// 新着メッセージ表示
+socket.on("message", renderMessage);
+
+function renderMessage(msg) {
+  const div = document.createElement("div");
+  div.innerHTML = `<b>${msg.name}</b> [${msg.time}] : `;
+
+  if (msg.type === "text") {
+    div.innerHTML += msg.msg;
+  } else if (msg.type === "image") {
+    div.innerHTML += `<br><img src="${msg.msg}" style="max-width:200px;">`;
+  } else if (msg.type === "video") {
+    div.innerHTML += `<br><video src="${msg.msg}" controls style="max-width:200px;"></video>`;
+  } else if (msg.type === "system") {
+    div.style.color = "gray";
+    div.innerHTML = msg.msg;
   }
-});
 
-// メッセージ保存（部屋ごとに最大100件）
-const messages = {};            // { roomName: [{id,msg,name,time,type,...},...] }
-const anonymousCounters = {};   // { roomName: lastAnonymousId }
-
-io.on('connection', (socket) => {
-  let currentRoom = null;
-
-  // 部屋入室
-  socket.on('join', ({ room, name, id }) => {
-    if (currentRoom) socket.leave(currentRoom);
-    currentRoom = room;
-    socket.join(room);
-
-    if (!messages[room]) messages[room] = [];
-    if (!anonymousCounters[room]) anonymousCounters[room] = 1;
-
-    // 入室メッセージ
-    const joinMsg = {
-      type: 'system',
-      msg: `【${socket.id.substring(0,4)}】さんが入室しました`,
-      time: new Date().toLocaleTimeString()
-    };
-    io.to(room).emit('message', joinMsg);
-
-    // 履歴を送信
-    socket.emit('history', messages[room]);
-  });
-
-  // メッセージ送信
-  socket.on('message', (data) => {
-    const room = currentRoom;
-    if (!room) return;
-
-    // 名前が未入力なら「名無しさん#番号」
-    let name = data.name?.trim();
-    if (!name) {
-      const id = anonymousCounters[room]++;
-      name = `名無しさん#${id}`;
-    }
-
-    const msgObj = {
-      id: socket.id.substring(0,4),
-      name,
-      msg: data.msg || null,
-      file: data.file || null,
-      fileType: data.fileType || null,
-      type: data.type || 'text',
-      time: data.time || new Date().toLocaleTimeString()
-    };
-
-    // 保存（最大100件）
-    messages[room].push(msgObj);
-    if (messages[room].length > 100) messages[room].shift();
-
-    io.to(room).emit('message', msgObj);
-  });
-
-  // 切断
-  socket.on('disconnect', () => {
-    if (currentRoom) {
-      const leaveMsg = {
-        type: 'system',
-        msg: `【${socket.id.substring(0,4)}】さんが退出しました`,
-        time: new Date().toLocaleTimeString()
-      };
-      io.to(currentRoom).emit('message', leaveMsg);
-    }
-  });
-});
-
-const PORT = process.env.PORT || 10000;
-httpServer.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+  chatArea.appendChild(div);
+}
