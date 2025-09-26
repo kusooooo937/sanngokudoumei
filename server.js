@@ -1,73 +1,65 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const multer = require('multer');
-const path = require('path');
-const cors = require('cors');
+import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 
 const app = express();
-const server = http.createServer(app);
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+    cors: { origin: '*' } // クロスオリジン対応
+});
 
-// CORS設定（GitHub Pages用）
-app.use(cors({
-  origin: 'https://kusooooo937.github.io',
-  methods: ['GET','POST'],
-  credentials: true
-}));
-
-// 静的ファイル
 app.use(express.static('public'));
 
-// ファイルアップロード設定
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'public/uploads'),
-  filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
-});
-const upload = multer({ storage });
-
-// メッセージ保存用（部屋ごと）
-const messages = {}; 
-const MAX_MESSAGES = 100;
-
-// ファイルアップロード用
-app.post('/upload', upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).send('No file uploaded.');
-  res.json({ url: '/uploads/' + req.file.filename });
-});
-
-const io = new Server(server, {
-  cors: {
-    origin: 'https://kusooooo937.github.io',
-    methods: ['GET','POST'],
-    credentials: true
-  }
-});
+const messages = {}; // { roomName: [{id,msg,name,time},...] }
+const anonymousCounters = {}; // { roomName: lastAnonymousId }
 
 io.on('connection', (socket) => {
-  let currentRoom = null;
+    let currentRoom = null;
 
-  socket.on('joinRoom', (room) => {
-    if (currentRoom) socket.leave(currentRoom);
-    currentRoom = room;
-    socket.join(room);
+    socket.on('joinRoom', (room) => {
+        if (currentRoom) socket.leave(currentRoom);
+        currentRoom = room;
+        socket.join(room);
 
-    if (!messages[room]) messages[room] = [];
-    socket.emit('history', messages[room]);
-  });
+        if (!messages[room]) messages[room] = [];
+        if (!anonymousCounters[room]) anonymousCounters[room] = 1;
 
-  socket.on('message', (data) => {
-    if (!currentRoom) return;
-    const msg = {
-      id: data.id || socket.id,
-      name: data.name && data.name.trim() ? data.name : '名無しさん',
-      type: data.type || 'text',
-      content: data.content,
-      time: new Date().toLocaleTimeString()
-    };
-    messages[currentRoom].push(msg);
-    if (messages[currentRoom].length > MAX_MESSAGES) messages[currentRoom].shift();
-    io.to(currentRoom).emit('message', msg);
-  });
+        // 入室メッセージ
+        const joinMsg = {
+            id: null,
+            name: 'システム',
+            msg: `【${socket.id.substring(0,4)}】さんが入室しました`,
+            time: new Date().toLocaleTimeString()
+        };
+        io.to(room).emit('message', joinMsg);
+
+        socket.emit('history', messages[room]);
+    });
+
+    socket.on('message', (data) => {
+        const room = currentRoom;
+        if (!room) return;
+
+        // 名前未設定なら名無しさん＋ID
+        let name = data.name?.trim();
+        if (!name) {
+            const id = anonymousCounters[room]++;
+            name = `名無しさん#${id}`;
+        }
+
+        const msgObj = {
+            id: socket.id.substring(0,4), // 簡易ID
+            name,
+            msg: data.msg,
+            time: new Date().toLocaleTimeString()
+        };
+
+        messages[room].push(msgObj);
+        if (messages[room].length > 100) messages[room].shift(); // 100件まで
+
+        io.to(room).emit('message', msgObj);
+    });
 });
 
-server.listen(10000, () => console.log('🚀 CORS対応サーバー起動中 port 10000'));
+const PORT = process.env.PORT || 10000;
+httpServer.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
