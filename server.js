@@ -1,44 +1,41 @@
 const express = require("express");
 const http = require("http");
-const { Server } = require("socket.io");
+const socketIo = require("socket.io");
+const multer = require("multer");
+const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
+const io = socketIo(server);
 
-const io = new Server(server, {
-  cors: { origin: "*" }
+// アップロード設定
+const storage = multer.diskStorage({
+  destination: "uploads/",
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage });
+
+// 静的ファイル公開
+app.use("/uploads", express.static("uploads"));
+
+// アップロードAPI
+app.post("/upload", upload.single("file"), (req, res) => {
+  res.json({ url: `/uploads/${req.file.filename}` });
 });
 
-app.use(express.static("public"));
-
-// 📝 部屋ごとの履歴を保存するオブジェクト
-const chatHistory = {}; // { roomName: [ { name, msg, time }, ... ] }
-
+// Socket.io チャット
 io.on("connection", (socket) => {
   console.log("✅ ユーザー接続");
 
   socket.on("join room", (room) => {
     socket.join(room);
-    console.log(`➡️ ${socket.id} joined room: ${room}`);
-
-    // 入室したユーザーに履歴を送信
-    if (chatHistory[room]) {
-      socket.emit("chat history", chatHistory[room]);
-    }
   });
 
-  socket.on("chat message", ({ room, name, msg }) => {
-    const time = new Date().toISOString();
-
-    // 履歴に保存（100件まで）
-    if (!chatHistory[room]) chatHistory[room] = [];
-    chatHistory[room].push({ name, msg, time });
-    if (chatHistory[room].length > 100) {
-      chatHistory[room].shift(); // 古いものから削除
-    }
-
-    // 部屋のみんなに送信
-    io.to(room).emit("chat message", { name, msg, time });
+  socket.on("chat message", (data) => {
+    data.time = Date.now();
+    io.to(data.room).emit("chat message", data);
   });
 
   socket.on("disconnect", () => {
@@ -46,7 +43,6 @@ io.on("connection", (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 10000;  // ← 10000固定はNG
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+server.listen(process.env.PORT || 10000, () => {
+  console.log("🚀 Server running");
 });
