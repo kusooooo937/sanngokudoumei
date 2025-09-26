@@ -1,68 +1,78 @@
-let socket = io('https://sanngokudoumei.onrender.com'); // あなたのサーバーURL
-let currentRoom = null;
+let socket = io('https://sanngokudoumei.onrender.com');
+let chat = document.getElementById('chat');
+let sendBtn = document.getElementById('sendBtn');
+let messageInput = document.getElementById('messageInput');
+let nameInput = document.getElementById('nameInput');
+let fileInput = document.getElementById('fileInput');
+let home = document.getElementById('home');
+let chatContainer = document.getElementById('chatContainer');
+let homeRoomInput = document.getElementById('homeRoomInput');
+let joinBtn = document.getElementById('joinBtn');
 
-const chat = document.getElementById('chat');
-const home = document.getElementById('home');
-const chatContainer = document.getElementById('chatContainer');
-const joinBtn = document.getElementById('joinBtn');
-const homeRoomInput = document.getElementById('homeRoomInput');
-const nameInput = document.getElementById('nameInput');
-const messageInput = document.getElementById('messageInput');
-const sendBtn = document.getElementById('sendBtn');
-const fileInput = document.getElementById('fileInput');
+let currentRoom = '';
+let anonymousCount = 0;
 
-// 入室
-joinBtn.addEventListener('click', () => {
-  const room = homeRoomInput.value.trim();
-  if (!room) return alert('部屋名を入力してください');
+// 部屋に入る
+joinBtn.onclick = () => {
+  let room = homeRoomInput.value.trim();
+  if(!room) room = 'main';
   currentRoom = room;
-  socket.emit('joinRoom', currentRoom);
+  socket.emit('joinRoom', room);
   home.style.display = 'none';
   chatContainer.style.display = 'block';
-  chat.innerHTML = '';
-});
+};
 
-// メッセージ送信
-sendBtn.addEventListener('click', () => {
-  const name = nameInput.value.trim();
-  const text = messageInput.value.trim();
-  if (!name || (!text && fileInput.files.length === 0)) return;
-
-  const msgData = { room: currentRoom, name, text, time: new Date().toLocaleTimeString() };
-
-  if (fileInput.files.length > 0) {
-    const file = fileInput.files[0];
-    const reader = new FileReader();
-    reader.onload = () => {
-      msgData.file = reader.result;
-      socket.emit('chatMessage', msgData);
-    };
-    reader.readAsDataURL(file);
-  } else {
-    socket.emit('chatMessage', msgData);
-  }
-
-  messageInput.value = '';
-  fileInput.value = '';
-});
-
-// メッセージ受信
-function appendMessage(data) {
-  const div = document.createElement('div');
+// メッセージ追加
+function appendMessage(msg) {
+  let div = document.createElement('div');
   div.className = 'message';
-  let content = `<span class="time">[${data.time}]</span> <span class="name">${data.name}:</span> `;
-  if (data.text) content += data.text;
-  if (data.file) {
-    if (data.file.startsWith('data:image')) {
-      content += `<br><img src="${data.file}" style="max-width:200px;">`;
-    } else if (data.file.startsWith('data:video')) {
-      content += `<br><video src="${data.file}" controls style="max-width:300px;"></video>`;
+  let content = '';
+  if(msg.file){
+    if(msg.file.type.startsWith('image')){
+      content = `<strong class="name">${msg.name}</strong> <span class="time">${msg.time}</span><br>
+                 <img src="${msg.file.url}" style="max-width:200px;">`;
+    } else if(msg.file.type.startsWith('video')){
+      content = `<strong class="name">${msg.name}</strong> <span class="time">${msg.time}</span><br>
+                 <video src="${msg.file.url}" controls style="max-width:200px;"></video>`;
     }
+  } else {
+    content = `<span class="number">${msg.num}</span><strong class="name">${msg.name}</strong>: ${msg.text} <span class="time">${msg.time}</span>`;
   }
   div.innerHTML = content;
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
 }
 
-socket.on('chatMessage', appendMessage);
-socket.on('chatHistory', (messages) => messages.forEach(appendMessage));
+// メッセージ送信
+sendBtn.onclick = () => {
+  let text = messageInput.value.trim();
+  if(!text && !fileInput.files.length) return;
+
+  let name = nameInput.value.trim();
+  if(!name){
+    anonymousCount++;
+    name = `名無しさん#${anonymousCount}`;
+  }
+
+  let file = fileInput.files[0];
+  if(file){
+    let reader = new FileReader();
+    reader.onload = () => {
+      socket.emit('chatMessage', {
+        room: currentRoom,
+        name,
+        text,
+        file: { url: reader.result, type: file.type }
+      });
+    };
+    reader.readAsDataURL(file);
+  } else {
+    socket.emit('chatMessage', { room: currentRoom, name, text });
+  }
+
+  messageInput.value = '';
+  fileInput.value = '';
+};
+
+// 受信
+socket.on('chatMessage', msg => appendMessage(msg));
