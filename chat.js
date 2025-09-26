@@ -1,7 +1,8 @@
+// chat.js
 const socket = io('https://sanngokudoumei.onrender.com');
 
 let room = '';
-let userId = Math.floor(Math.random() * 1000); // 仮ID
+let userId = Math.floor(Math.random() * 1000);
 let userName = '名無しさん';
 
 const chat = document.getElementById('chat');
@@ -14,28 +15,29 @@ const messageInput = document.getElementById('messageInput');
 const fileInput = document.getElementById('fileInput');
 const sendBtn = document.getElementById('sendBtn');
 
-// メッセージ表示
+// メッセージを表示
 function addMessage(data) {
-  const id = data.id ? `#${data.id}` : '';
   const div = document.createElement('div');
   div.className = 'message';
-  let content = '';
 
-  if (data.name === 'システム') {
-    content = `<i>${data.msg}</i>`;
+  if (data.type === 'system') {
+    div.innerHTML = `<i>${data.msg}</i>`;
   } else if (data.file) {
     if (data.fileType.startsWith('image')) {
-      content = `<strong>${data.name}${id}</strong> <span class="time">${data.time}</span>:<br>
-                 <img src="${data.file}" style="max-width:200px; display:block; margin-top:5px;">`;
+      div.innerHTML = `<span class="name">${data.name}#${data.id}</span> 
+        <span class="time">${data.time}</span><br>
+        <img src="${data.file}" style="max-width:200px;">`;
     } else if (data.fileType.startsWith('video')) {
-      content = `<strong>${data.name}${id}</strong> <span class="time">${data.time}</span>:<br>
-                 <video src="${data.file}" controls style="max-width:200px; display:block; margin-top:5px;"></video>`;
+      div.innerHTML = `<span class="name">${data.name}#${data.id}</span> 
+        <span class="time">${data.time}</span><br>
+        <video src="${data.file}" controls style="max-width:200px;"></video>`;
     }
   } else {
-    content = `<strong>${data.name}${id}</strong> <span class="time">${data.time}</span>: ${data.msg}`;
+    div.innerHTML = `<span class="name">${data.name}#${data.id}</span> 
+      <span class="time">${data.time}</span>: 
+      ${data.msg}`;
   }
 
-  div.innerHTML = content;
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
 }
@@ -45,19 +47,20 @@ joinBtn.addEventListener('click', () => {
   const r = homeRoomInput.value.trim();
   if (!r) return alert('部屋名を入力してください');
   room = r;
+
   home.style.display = 'none';
   chatContainer.style.display = 'block';
-  userName = nameInput.value.trim() || userName;
-  socket.emit('joinRoom', room);
+
+  socket.emit('join', { room, name: nameInput.value || userName, id: userId });
 });
 
 // 送信
 sendBtn.addEventListener('click', () => {
   const msg = messageInput.value.trim();
   const file = fileInput.files[0];
-  if (!msg && !file) return;
-
   let name = nameInput.value.trim() || userName;
+
+  if (!msg && !file) return;
 
   if (file) {
     const reader = new FileReader();
@@ -68,6 +71,7 @@ sendBtn.addEventListener('click', () => {
         name,
         file: reader.result,
         fileType: file.type,
+        type: 'file',
         time: new Date().toLocaleTimeString()
       });
     };
@@ -78,6 +82,7 @@ sendBtn.addEventListener('click', () => {
       id: userId,
       name,
       msg,
+      type: 'text',
       time: new Date().toLocaleTimeString()
     });
   }
@@ -86,8 +91,6 @@ sendBtn.addEventListener('click', () => {
   fileInput.value = '';
 });
 
-// 過去メッセージ受信
+// サーバーから受信
 socket.on('history', msgs => msgs.forEach(addMessage));
-
-// 新規メッセージ受信
 socket.on('message', addMessage);
