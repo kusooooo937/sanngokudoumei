@@ -34,26 +34,29 @@ function joinRoom() {
   chatDiv.appendChild(div);
 }
 
+const fileInput = document.getElementById("fileInput");
+
 // メッセージ送信
-sendBtn.addEventListener("click", () => {
+sendBtn.addEventListener("click", async () => {
   const name = nameInput.value.trim() || "名無しさん";
   const msg = messageInput.value.trim();
-  if (msg !== "") {
-    socket.emit("chat message", { room: currentRoom, name, msg });
-    messageInput.value = "";
+
+  let fileUrl = null;
+
+  // ファイルが選択されていたらアップロード
+  if (fileInput.files.length > 0) {
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+
+    const res = await fetch("/upload", { method: "POST", body: formData });
+    const data = await res.json();
+    fileUrl = data.url;
+
+    fileInput.value = ""; // 選択をクリア
   }
-});
 
-// 過去ログ受信
-socket.on("chat history", (history) => {
-  chatDiv.innerHTML = "";
-  messageCount = 0;
-  history.forEach(data => addMessage(data));
-});
-
-// 新規メッセージ受信
-socket.on("chat message", (data) => {
-  addMessage(data);
+  socket.emit("chat message", { room: currentRoom, name, msg, fileUrl });
+  messageInput.value = "";
 });
 
 // メッセージ表示
@@ -69,6 +72,16 @@ function addMessage(data) {
                    <span class="name">${data.name}</span>
                    ${data.msg}
                    <span class="time">(${time})</span>`;
+
+  // ファイルがある場合は表示
+  if (data.fileUrl) {
+    if (data.fileUrl.match(/\.(mp4|webm|ogg)$/)) {
+      div.innerHTML += `<br><video src="${data.fileUrl}" controls width="300"></video>`;
+    } else {
+      div.innerHTML += `<br><img src="${data.fileUrl}" style="max-width:300px;">`;
+    }
+  }
+
   chatDiv.appendChild(div);
   chatDiv.scrollTop = chatDiv.scrollHeight;
 }
