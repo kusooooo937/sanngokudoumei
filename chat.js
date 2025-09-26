@@ -1,62 +1,100 @@
-const socket = io('https://sanngokudoumei.onrender.com');
-let userId = Date.now();
-let currentRoom = null;
+// chat.js
 
+const socket = io('https://sanngokudoumei.onrender.com');
+
+let room = '';
+let userId = Math.floor(Math.random() * 1000); // 仮ID
+let userName = '名無しさん';
+
+const chat = document.getElementById('chat');
 const home = document.getElementById('home');
+const chatContainer = document.getElementById('chatContainer');
 const joinBtn = document.getElementById('joinBtn');
 const homeRoomInput = document.getElementById('homeRoomInput');
-const chatContainer = document.getElementById('chatContainer');
-const chat = document.getElementById('chat');
 const nameInput = document.getElementById('nameInput');
 const messageInput = document.getElementById('messageInput');
-const sendBtn = document.getElementById('sendBtn');
 const fileInput = document.getElementById('fileInput');
+const sendBtn = document.getElementById('sendBtn');
 
-joinBtn.onclick = () => {
-  const room = homeRoomInput.value.trim();
-  if (!room) return alert('部屋名を入力してください');
-  currentRoom = room;
-  socket.emit('joinRoom', room);
-  home.style.display = 'none';
-  chatContainer.style.display = 'block';
-  chat.innerHTML = '';
-};
-
-sendBtn.onclick = sendMessage;
-messageInput.onkeydown = e => e.key === 'Enter' && sendMessage();
-
-function sendMessage() {
-  let content = messageInput.value.trim();
-  let type = 'text';
-
-  if (fileInput.files.length > 0) {
-    const file = fileInput.files[0];
-    const form = new FormData();
-    form.append('file', file);
-    fetch('/upload', { method: 'POST', body: form })
-      .then(res => res.json())
-      .then(data => {
-        socket.emit('message', { id: userId, name: nameInput.value, type: file.type.startsWith('image') ? 'image' : 'video', content: data.url });
-      });
-    fileInput.value = '';
-  }
-
-  if (content) {
-    socket.emit('message', { id: userId, name: nameInput.value, type, content });
-    messageInput.value = '';
-  }
-}
-
-socket.on('history', msgs => msgs.forEach(addMessage));
-socket.on('message', addMessage);
-
-function addMessage(msg) {
+// メッセージ表示
+function addMessage(data) {
+  const id = data.id ? `#${data.id}` : '';
   const div = document.createElement('div');
   div.className = 'message';
-  div.innerHTML = `<span class="number">${msg.id}</span><span class="name">${msg.name}</span><span class="time">${msg.time}</span>: `;
-  if (msg.type === 'text') div.innerHTML += msg.content;
-  else if (msg.type === 'image') div.innerHTML += `<br><img src="${msg.content}" style="max-width:200px;">`;
-  else if (msg.type === 'video') div.innerHTML += `<br><video src="${msg.content}" controls style="max-width:200px;"></video>`;
+  let content = '';
+  if (data.type === 'system') {
+    content = `<span class="text"><i>${data.msg}</i></span>`;
+  } else if (data.file) {
+    if (data.fileType.startsWith('image')) {
+      content = `<span class="text">${data.name}${id}:</span> 
+                 <img src="${data.file}" style="max-width:200px; display:block; margin-top:5px;">`;
+    } else if (data.fileType.startsWith('video')) {
+      content = `<span class="text">${data.name}${id}:</span> 
+                 <video src="${data.file}" controls style="max-width:200px; display:block; margin-top:5px;"></video>`;
+    }
+  } else {
+    content = `<span class="name">${data.name}${id}</span>
+               <span class="time">${data.time}</span>: 
+               <span class="text">${data.msg}</span>`;
+  }
+  div.innerHTML = content;
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
 }
+
+// 部屋入室
+joinBtn.addEventListener('click', () => {
+  const r = homeRoomInput.value.trim();
+  if (!r) return alert('部屋名を入力してください');
+  room = r;
+  home.style.display = 'none';
+  chatContainer.style.display = 'block';
+  socket.emit('join', { room, name: nameInput.value || userName, id: userId });
+});
+
+// 送信
+sendBtn.addEventListener('click', () => {
+  const msg = messageInput.value.trim();
+  if (!msg && !fileInput.files[0]) return;
+  let name = nameInput.value.trim() || userName;
+  const file = fileInput.files[0];
+
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      socket.emit('message', {
+        room,
+        id: userId,
+        name,
+        file: reader.result,
+        fileType: file.type,
+        type: 'file',
+        time: new Date().toLocaleTimeString()
+      });
+    };
+    reader.readAsDataURL(file);
+  } else {
+    socket.emit('message', {
+      room,
+      id: userId,
+      name,
+      msg,
+      type: 'text',
+      time: new Date().toLocaleTimeString()
+    });
+  }
+
+  messageInput.value = '';
+  fileInput.value = '';
+});
+
+// 過去メッセージ受信
+socket.on('history', msgs => {
+  msgs.forEach(addMessage);
+});
+
+// 新規メッセージ受信
+socket.on('message', addMessage);
+
+// 入室メッセージ
+socket.on('system', addMessage);
