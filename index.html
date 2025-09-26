@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>チャット（ホーム→部屋）</title>
+  <title>複数部屋チャット</title>
   <style>
     body { font-family: monospace; background:#fff; color:#000; margin:0; padding:0; }
     #chat { width:90%; max-width:800px; height:60vh; margin:20px auto; border:1px solid #ccc;
@@ -12,34 +12,36 @@
     .name { color:#0066cc; margin-right:10px; }
     .time { color:#888; margin-left:10px; }
     #inputArea { width:90%; max-width:800px; margin:0 auto 20px; display:flex; gap:10px; }
-    #nameInput, #messageInput, #fileInput { padding:8px; font-family:monospace; }
+    #roomInput, #nameInput, #messageInput { padding:8px; font-family:monospace; }
+    #roomInput { width:100px; }
+    #nameInput { width:120px; }
     #messageInput { flex:1; }
     #sendBtn { padding:8px 16px; font-family:monospace; }
   </style>
 </head>
 <body>
-<h1 style="text-align:center;">チャット</h1>
+  <h1 style="text-align:center;">複数部屋チャット</h1>
 
-<!-- ホーム画面 -->
-<div id="home" style="text-align:center; margin:10px;">
-  部屋名を入力して入室してください:
-  <input id="homeRoomInput" type="text" placeholder="部屋名">
-  <button id="joinBtn">入室</button>
-</div>
-
-<!-- チャット画面 -->
-<div id="chatContainer" style="display:none;">
-  <div id="chat"></div>
-  <div id="inputArea">
-    <input id="nameInput" type="text" placeholder="名前">
-    <input id="messageInput" type="text" placeholder="書き込み…">
-    <input id="fileInput" type="file" accept="image/*,video/*">
-    <button id="sendBtn">送信</button>
+  <!-- ホーム画面 -->
+  <div id="home" style="text-align:center; margin:10px;">
+    部屋名を入力して入室してください:
+    <input id="homeRoomInput" type="text" placeholder="部屋名">
+    <button id="joinBtn">入室</button>
   </div>
-  <p style="text-align:center;"><a href="#" id="backHome">ホームへ戻る</a></p>
-</div>
 
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-<script src="chat.js"></script>
+  <!-- チャット画面 -->
+  <div id="chatContainer" style="display:none;">
+    <div id="chat"></div>
+    <div id="inputArea">
+      <input id="nameInput" type="text" placeholder="名前">
+      <input id="messageInput" type="text" placeholder="書き込み…">
+      <input id="fileInput" type="file" accept="image/*,video/*">
+      <button id="sendBtn">書き込む</button>
+    </div>
+    <p style="text-align:center;"><a href="#" onclick="location.reload();">ホームに戻る</a></p>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="chat.js"></script>
 </body>
 </html>
