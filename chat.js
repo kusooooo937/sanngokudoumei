@@ -1,6 +1,9 @@
+// chat.js
+
 const socket = io();
 let username = "";
 let currentRoom = "";
+let userId = Math.floor(Math.random() * 1000); // 仮ID
 
 const roomInput = document.getElementById("roomInput");
 const joinBtn = document.getElementById("joinBtn");
@@ -19,6 +22,9 @@ socket.on("history", (history) => {
 // 新規メッセージ受信
 socket.on("chat message", renderMessage);
 
+// システムメッセージ受信
+socket.on("system", renderMessage);
+
 // 部屋入室
 joinBtn.onclick = () => {
   const room = roomInput.value.trim();
@@ -32,16 +38,18 @@ joinBtn.onclick = () => {
 // メッセージ送信
 form.addEventListener("submit", (e) => {
   e.preventDefault();
-  const text = input.value;
-  if (!text && !fileInput.files[0]) return;
-
+  const text = input.value.trim();
   const file = fileInput.files[0];
+  if (!text && !file) return;
+
+  // 名前未設定なら名無しさん#ID
+  const name = username || `名無しさん#${userId}`;
 
   if (file) {
     const reader = new FileReader();
     reader.onload = (ev) => {
       socket.emit("chat message", {
-        name: username,
+        name,
         msg: text,
         file: ev.target.result,
         fileType: file.type
@@ -49,10 +57,7 @@ form.addEventListener("submit", (e) => {
     };
     reader.readAsDataURL(file);
   } else {
-    socket.emit("chat message", {
-      name: username,
-      msg: text
-    });
+    socket.emit("chat message", { name, msg: text });
   }
 
   input.value = "";
@@ -69,11 +74,10 @@ function renderMessage(data) {
     if (data.fileType.startsWith("image")) {
       content += `<br><img src="${data.file}" style="max-width:200px;">`;
     } else if (data.fileType.startsWith("video")) {
-      content += `<br><video controls preload="metadata" style="max-width:300px; display:block; margin-top:5px;">
-                    <source src="${data.file}" type="${data.fileType}">
-                  </video>`;
+      content += `<br><video controls style="max-width:300px; display:block; margin-top:5px;" src="${data.file}"></video>`;
     }
   }
   li.innerHTML = content;
   messagesEl.appendChild(li);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
 }
