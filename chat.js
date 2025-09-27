@@ -1,89 +1,79 @@
-const socket = io("https://sanngokudoumei.onrender.com"); // Render URLに置き換え
+// Renderのデプロイ先に合わせてURL変更
+const socket = io("https://sanngokudoumei.onrender.com");
 
-let room = "";
-let userId = Math.floor(Math.random() * 1000);
-let userName = "名無しさん";
-
-const chat = document.getElementById("chat");
-const home = document.getElementById("home");
-const chatContainer = document.getElementById("chatContainer");
 const joinBtn = document.getElementById("joinBtn");
-const homeRoomInput = document.getElementById("homeRoomInput");
+const roomInput = document.getElementById("roomInput");
 const nameInput = document.getElementById("nameInput");
-const messageInput = document.getElementById("messageInput");
-const fileInput = document.getElementById("fileInput");
+const msgInput = document.getElementById("msgInput");
 const sendBtn = document.getElementById("sendBtn");
+const chatArea = document.getElementById("chat");
+const fileInput = document.getElementById("fileInput");
+
+let currentRoom = "";
 
 // メッセージ表示
-function addMessage(data) {
-  const id = data.id ? `#${data.id}` : "";
+function renderMessage(msg) {
   const div = document.createElement("div");
   div.className = "message";
-  let content = "";
 
-  if (data.type === "system") {
-    content = `<i>${data.msg}</i>`;
-  } else if (data.file) {
-    if (data.fileType.startsWith("image")) {
-      content = `<b>${data.name}${id}</b> [${data.time}]:<br>
-                 <img src="${data.file}" style="max-width:200px;">`;
-    }
-  } else {
-    content = `<b>${data.name}${id}</b> [${data.time}]: ${data.msg}`;
+  if (msg.type === "system") {
+    div.style.color = "gray";
+    div.textContent = msg.msg;
+  } else if (msg.type === "text") {
+    div.innerHTML = `<span class="name">${msg.name}</span>
+                     <span class="time">${msg.time}</span>: ${msg.msg}`;
+  } else if (msg.type === "image") {
+    div.innerHTML = `<span class="name">${msg.name}</span>
+                     <span class="time">${msg.time}</span>:<br>
+                     <img src="${msg.msg}" style="max-width:200px;">`;
   }
-
-  div.innerHTML = content;
-  chat.appendChild(div);
-  chat.scrollTop = chat.scrollHeight;
+  chatArea.appendChild(div);
+  chatArea.scrollTop = chatArea.scrollHeight;
 }
 
-// 部屋入室
-joinBtn.addEventListener("click", () => {
-  const r = homeRoomInput.value.trim();
-  if (!r) return alert("部屋名を入力してください");
-  room = r;
-  home.style.display = "none";
-  chatContainer.style.display = "block";
-  socket.emit("joinRoom", room);
+// 履歴
+socket.on("history", (msgs) => {
+  chatArea.innerHTML = "";
+  msgs.forEach(renderMessage);
 });
 
-// メッセージ送信
-sendBtn.addEventListener("click", () => {
-  const msg = messageInput.value.trim();
+// 新規メッセージ
+socket.on("message", renderMessage);
+
+// 入室
+joinBtn.onclick = () => {
+  const room = roomInput.value.trim();
+  if (!room) return alert("部屋名を入力してください");
+  currentRoom = room;
+  socket.emit("joinRoom", room);
+  document.getElementById("home").style.display = "none";
+  document.getElementById("chatContainer").style.display = "block";
+};
+
+// 送信
+sendBtn.onclick = () => {
+  const text = msgInput.value.trim();
+  const name = nameInput.value.trim() || "名無しさん";
   const file = fileInput.files[0];
-  let name = nameInput.value.trim() || userName;
 
   if (file) {
     const reader = new FileReader();
     reader.onload = () => {
       socket.emit("message", {
-        room,
-        id: userId,
+        type: "image",
         name,
-        file: reader.result,
-        fileType: file.type,
-        type: "file",
-        time: new Date().toLocaleTimeString(),
+        msg: reader.result
       });
     };
     reader.readAsDataURL(file);
-  } else if (msg) {
+  } else if (text) {
     socket.emit("message", {
-      room,
-      id: userId,
-      name,
-      msg,
       type: "text",
-      time: new Date().toLocaleTimeString(),
+      name,
+      msg: text
     });
   }
 
-  messageInput.value = "";
+  msgInput.value = "";
   fileInput.value = "";
-});
-
-// 過去メッセージ受信
-socket.on("history", (msgs) => msgs.forEach(addMessage));
-
-// 新規メッセージ受信
-socket.on("message", addMessage);
+};
