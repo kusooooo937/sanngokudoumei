@@ -1,30 +1,38 @@
-const socket = io("https://sanngokudoumei.onrender.com");
+const socket = io("https://<あなたのRenderサーバーURL>/"); // Render URLに置き換え
 
+let room = "";
+let userId = Math.floor(Math.random() * 1000);
+let userName = "名無しさん";
+
+const chat = document.getElementById("chat");
+const home = document.getElementById("home");
+const chatContainer = document.getElementById("chatContainer");
 const joinBtn = document.getElementById("joinBtn");
 const homeRoomInput = document.getElementById("homeRoomInput");
 const nameInput = document.getElementById("nameInput");
 const messageInput = document.getElementById("messageInput");
 const fileInput = document.getElementById("fileInput");
 const sendBtn = document.getElementById("sendBtn");
-const home = document.getElementById("home");
-const chatContainer = document.getElementById("chatContainer");
-const chat = document.getElementById("chat");
-
-let room = '';
-let userName = '名無しさん';
 
 // メッセージ表示
 function addMessage(data) {
+  const id = data.id ? `#${data.id}` : "";
   const div = document.createElement("div");
-  div.className = 'message';
-  if (data.type === 'system') {
-    div.innerHTML = `<i style="color:gray;">${data.msg}</i>`;
-  } else if (data.type === 'image') {
-    div.innerHTML = `<b>${data.name}</b> [${data.time}]:<br>
-                     <img src="${data.msg}" style="max-width:200px;">`;
+  div.className = "message";
+  let content = "";
+
+  if (data.type === "system") {
+    content = `<i>${data.msg}</i>`;
+  } else if (data.file) {
+    if (data.fileType.startsWith("image")) {
+      content = `<b>${data.name}${id}</b> [${data.time}]:<br>
+                 <img src="${data.file}" style="max-width:200px;">`;
+    }
   } else {
-    div.innerHTML = `<b>${data.name}</b> [${data.time}]: ${data.msg}`;
+    content = `<b>${data.name}${id}</b> [${data.time}]: ${data.msg}`;
   }
+
+  div.innerHTML = content;
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
 }
@@ -34,36 +42,48 @@ joinBtn.addEventListener("click", () => {
   const r = homeRoomInput.value.trim();
   if (!r) return alert("部屋名を入力してください");
   room = r;
-  userName = nameInput.value.trim() || userName;
-  socket.emit("joinRoom", { room, name: userName });
   home.style.display = "none";
   chatContainer.style.display = "block";
+  socket.emit("joinRoom", room);
 });
 
-// 送信
-sendBtn.addEventListener("click", async () => {
+// メッセージ送信
+sendBtn.addEventListener("click", () => {
   const msg = messageInput.value.trim();
   const file = fileInput.files[0];
-  if (!msg && !file) return;
+  let name = nameInput.value.trim() || userName;
 
   if (file) {
-    const formData = new FormData();
-    formData.append("file", file);
-    const res = await fetch("https://sanngokudoumei.onrender.com/upload", {
-      method: "POST",
-      body: formData
+    const reader = new FileReader();
+    reader.onload = () => {
+      socket.emit("message", {
+        room,
+        id: userId,
+        name,
+        file: reader.result,
+        fileType: file.type,
+        type: "file",
+        time: new Date().toLocaleTimeString(),
+      });
+    };
+    reader.readAsDataURL(file);
+  } else if (msg) {
+    socket.emit("message", {
+      room,
+      id: userId,
+      name,
+      msg,
+      type: "text",
+      time: new Date().toLocaleTimeString(),
     });
-    const data = await res.json();
-    socket.emit("message", { name: userName, msg: data.url, type: "image" });
-  } else {
-    socket.emit("message", { name: userName, msg, type: "text" });
   }
 
   messageInput.value = "";
   fileInput.value = "";
 });
 
-// 過去メッセージ
+// 過去メッセージ受信
 socket.on("history", (msgs) => msgs.forEach(addMessage));
-// 新規メッセージ
+
+// 新規メッセージ受信
 socket.on("message", addMessage);
