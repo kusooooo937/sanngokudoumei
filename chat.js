@@ -1,4 +1,4 @@
-const socket = io("https://<あなたのRenderサーバーURL>/"); // Render URLに置き換え
+const socket = io("https://sanngokudoumei.onrender.com"); // Render URLに置き換え
 
 let room = "";
 let userId = Math.floor(Math.random() * 1000);
