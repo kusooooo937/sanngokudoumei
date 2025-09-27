@@ -1,59 +1,78 @@
-// Render にデプロイしたサーバーURLに差し替える
-const socket = io("https://sanngokudoumei.onrender.com");
+const socket = io('https://sanngokudoumei.onrender.com');
 
-const joinBtn = document.getElementById("joinBtn");
-const roomInput = document.getElementById("roomInput");
-const nameInput = document.getElementById("nameInput");
-const msgInput = document.getElementById("msgInput");
-const sendBtn = document.getElementById("sendBtn");
-const chatArea = document.getElementById("chat");
+let room = '';
+let userId = Math.floor(Math.random() * 1000);
 
-joinBtn.onclick = () => {
-  const room = roomInput.value.trim();
-  if (!room) return alert("部屋名を入力してください");
-  socket.emit("joinRoom", room);
-};
+const chat = document.getElementById('chat');
+const home = document.getElementById('home');
+const chatContainer = document.getElementById('chatContainer');
+const joinBtn = document.getElementById('joinBtn');
+const homeRoomInput = document.getElementById('homeRoomInput');
+const nameInput = document.getElementById('nameInput');
+const messageInput = document.getElementById('messageInput');
+const fileInput = document.getElementById('fileInput');
+const sendBtn = document.getElementById('sendBtn');
 
-sendBtn.onclick = () => {
-  const msg = msgInput.value.trim();
-  if (!msg) return;
-  socket.emit("message", { name: nameInput.value, msg });
-  msgInput.value = "";
-};
+function addMessage(data) {
+  const id = data.id ? `#${data.id}` : '';
+  const div = document.createElement('div');
+  div.className = 'message';
+  let content = '';
 
-// 画像送信
-function sendImage(base64) {
-  socket.emit("image", { name: nameInput.value, url: base64 });
-}
-
-// 動画送信
-function sendVideo(url) {
-  socket.emit("video", { name: nameInput.value, url });
-}
-
-// 履歴表示
-socket.on("history", (msgs) => {
-  chatArea.innerHTML = "";
-  msgs.forEach(renderMessage);
-});
-
-// 新着メッセージ表示
-socket.on("message", renderMessage);
-
-function renderMessage(msg) {
-  const div = document.createElement("div");
-  div.innerHTML = `<b>${msg.name}</b> [${msg.time}] : `;
-
-  if (msg.type === "text") {
-    div.innerHTML += msg.msg;
-  } else if (msg.type === "image") {
-    div.innerHTML += `<br><img src="${msg.msg}" style="max-width:200px;">`;
-  } else if (msg.type === "video") {
-    div.innerHTML += `<br><video src="${msg.msg}" controls style="max-width:200px;"></video>`;
-  } else if (msg.type === "system") {
-    div.style.color = "gray";
-    div.innerHTML = msg.msg;
+  if (data.type === 'system') {
+    content = `<i>${data.msg}</i>`;
+  } else if (data.file) {
+    if (data.fileType.startsWith('image')) {
+      content = `<b>${data.name}${id}</b> [${data.time}]:<br>
+                 <img src="${data.file}" style="max-width:200px;">`;
+    } else if (data.fileType.startsWith('video')) {
+      content = `<b>${data.name}${id}</b> [${data.time}]:<br>
+                 <video src="${data.file}" controls style="max-width:200px;"></video>`;
+    }
+  } else {
+    content = `<b>${data.name}${id}</b> [${data.time}]: ${data.msg}`;
   }
 
-  chatArea.appendChild(div);
+  div.innerHTML = content;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
 }
+
+joinBtn.addEventListener('click', () => {
+  const r = homeRoomInput.value.trim();
+  if (!r) return alert('部屋名を入力してください');
+  room = r;
+  home.style.display = 'none';
+  chatContainer.style.display = 'block';
+  socket.emit('join', { room, name: nameInput.value || '名無しさん', id: userId });
+});
+
+sendBtn.addEventListener('click', () => {
+  const name = nameInput.value.trim() || '名無しさん';
+  const msg = messageInput.value.trim();
+  const file = fileInput.files[0];
+
+  if (!msg && !file) return;
+
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      socket.emit('message', {
+        room,
+        name,
+        file: reader.result,
+        fileType: file.type,
+        type: file.type.startsWith('image') ? 'image' : 'video'
+      });
+    };
+    reader.readAsDataURL(file);
+  } else {
+    socket.emit('message', { room, name, msg, type: 'text' });
+  }
+
+  messageInput.value = '';
+  fileInput.value = '';
+});
+
+socket.on('history', msgs => msgs.forEach(addMessage));
+socket.on('message', addMessage);
