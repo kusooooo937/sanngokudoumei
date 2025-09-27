@@ -55,9 +55,12 @@ function addMessage(data) {
   if (data.type === 'system') {
     content = `<span class="text"><i>${data.msg}</i></span>`;
   } else if (data.file) {
-    if (data.fileType.startsWith('image')) {
+    if (data.fileType && data.fileType.startsWith('image')) {
       content = `<span class="text">${data.name}${id}:</span> 
                  <img src="${data.file}" style="max-width:200px; display:block; margin-top:5px;">`;
+    } else {
+      content = `<span class="text">${data.name}${id}:</span> 
+                 <a href="${data.file}" download>ファイルをダウンロード</a>`;
     }
   } else {
     content = `<span class="name">${data.name}${id}</span>
@@ -78,7 +81,8 @@ joinBtn.addEventListener('click', () => {
   chatContainer.style.display = 'block';
   addRecentRoom(r);
 
-  socket.emit('join', { room, name: nameInput.value || userName, id: userId });
+  // 修正: サーバーに合わせて "joinRoom" を送る
+  socket.emit('joinRoom', room);
 });
 
 // 送信
@@ -97,7 +101,6 @@ sendBtn.addEventListener('click', () => {
         name,
         file: reader.result,
         fileType: file.type,
-        type: 'file',
         time: new Date().toLocaleTimeString()
       });
     };
@@ -108,7 +111,6 @@ sendBtn.addEventListener('click', () => {
       id: userId,
       name,
       msg,
-      type: 'text',
       time: new Date().toLocaleTimeString()
     });
   }
@@ -124,9 +126,6 @@ socket.on('history', msgs => {
 
 // 新規メッセージ受信
 socket.on('message', addMessage);
-
-// 入室メッセージ
-socket.on('system', addMessage);
 
 // 初期化
 updateRecentRooms();
