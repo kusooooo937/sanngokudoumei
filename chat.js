@@ -2,7 +2,7 @@
 const socket = io("https://sanngokudoumei.onrender.com");
 
 const joinBtn = document.getElementById("joinBtn");
-const roomInput = document.getElementById("roomInput");
+const roomInput = document.getElementById("homeRoomInput"); // ← HTMLと一致させる
 const nameInput = document.getElementById("nameInput");
 const msgInput = document.getElementById("msgInput");
 const sendBtn = document.getElementById("sendBtn");
