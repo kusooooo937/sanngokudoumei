@@ -1,11 +1,6 @@
-// chat.js（前のコードベース＋ホームに戻る機能）
+// chat.js
 
-const socket = io("https://sanngokudoumei.onrender.com", {
-  autoConnect: true,
-  reconnection: true,
-  reconnectionAttempts: Infinity,
-  reconnectionDelay: 1000
-});
+const socket = io("https://sanngokudoumei.onrender.com");
 
 let room = '';
 let userId = Math.floor(Math.random() * 1000);
@@ -21,9 +16,9 @@ const messageInput = document.getElementById('messageInput');
 const fileInput = document.getElementById('fileInput');
 const sendBtn = document.getElementById('sendBtn');
 const recentRoomsDiv = document.getElementById('recentRooms');
-const backHomeLink = document.getElementById('backHomeLink'); // ホームに戻るリンク
+const homeBtn = document.getElementById('homeBtn'); // ホーム戻るボタン
 
-// 最近使った部屋をLocalStorageで管理
+// 最近使った部屋
 function getRecentRooms() {
   return JSON.parse(localStorage.getItem('recentRooms') || '[]');
 }
@@ -82,12 +77,13 @@ joinBtn.addEventListener('click', () => {
   userName = nameInput.value.trim() || userName;
   localStorage.setItem('chatUserName', userName);
   addRecentRoom(r);
+
   home.style.display = 'none';
   chatContainer.style.display = 'block';
   socket.emit('joinRoom', room);
 });
 
-// 送信
+// メッセージ送信
 sendBtn.addEventListener('click', () => {
   const msg = messageInput.value.trim();
   const name = nameInput.value.trim() || userName;
@@ -123,35 +119,18 @@ sendBtn.addEventListener('click', () => {
   fileInput.value = '';
 });
 
-// 過去メッセージ
+// 過去メッセージ受信
 socket.on('history', msgs => msgs.forEach(addMessage));
-
-// 新規メッセージ
 socket.on('message', addMessage);
 socket.on('system', addMessage);
 
-// ホームに戻る
-backHomeLink.addEventListener('click', () => {
+// ホームに戻るボタン
+homeBtn.addEventListener('click', () => {
+  chat.innerHTML = ''; // チャット画面リセット
+  messageInput.value = '';
+  fileInput.value = '';
   chatContainer.style.display = 'none';
   home.style.display = 'block';
-  room = '';
-  chat.innerHTML = ''; // チャット履歴をクリア
-});
-
-// 自動復元
-window.addEventListener('load', () => {
-  const lastRoom = localStorage.getItem('chatLastRoom');
-  const lastName = localStorage.getItem('chatUserName');
-  if (lastRoom) {
-    homeRoomInput.value = lastRoom;
-    nameInput.value = lastName || '名無しさん';
-    room = lastRoom;
-  }
-});
-
-// 保存最後の部屋
-socket.on('connect', () => {
-  if (room) localStorage.setItem('chatLastRoom', room);
 });
 
 // 初期化
