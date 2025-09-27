@@ -1,6 +1,6 @@
 // chat.js
 
-const socket = io("https://sanngokudoumei.onrender.com/"); // RenderデプロイURL
+const socket = io("https://sanngokudoumei.onrender.com"); // RenderデプロイURL
 
 let room = '';
 let userId = Math.floor(Math.random() * 1000); // 仮ID
