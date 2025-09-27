@@ -1,59 +1,72 @@
-import express from "express"
-import { createServer } from "http";
+import express from "express";
+import http from "http";
 import { Server } from "socket.io";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const app = express();
-const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: { origin: "*" }
-});
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: "*" } });
 
-// 部屋ごとのメッセージ履歴を保持
-const messages = {}; // { roomName: [ {type, name, msg, time}, ... ] }
+const PORT = process.env.PORT || 3000;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.get("/chat.js", (req, res) => res.sendFile(path.join(__dirname, "chat.js")));
+
+const messages = {}; // { roomName: [{id, name, msg, type, time, fileType, file}] }
+const anonymousCounters = {}; // { roomName: lastAnonymousId }
 
 io.on("connection", (socket) => {
   let currentRoom = null;
 
-  // 部屋入室
   socket.on("joinRoom", (room) => {
     if (currentRoom) socket.leave(currentRoom);
     currentRoom = room;
     socket.join(room);
 
     if (!messages[room]) messages[room] = [];
+    if (!anonymousCounters[room]) anonymousCounters[room] = 1;
 
-    // 履歴送信
-    socket.emit("history", messages[room]);
-
-    // 入室メッセージ
     const joinMsg = {
-      type: "system",
-      name: "システム",
+      id: null,
+      name: "system",
       msg: `【${socket.id.substring(0, 4)}】さんが入室しました`,
-      time: new Date().toLocaleTimeString()
+      type: "system",
+      time: new Date().toLocaleTimeString(),
     };
     io.to(room).emit("message", joinMsg);
+
+    socket.emit("history", messages[room]);
   });
 
-  // メッセージ受信
   socket.on("message", (data) => {
-    if (!currentRoom) return;
+    const room = currentRoom;
+    if (!room) return;
+
+    let name = data.name?.trim();
+    if (!name) {
+      const id = anonymousCounters[room]++;
+      name = `名無しさん#${id}`;
+    }
 
     const msgObj = {
-      type: data.type || "text",
-      name: data.name?.trim() || "名無しさん",
-      msg: data.msg,
-      time: new Date().toLocaleTimeString()
+      id: socket.id.substring(0, 4),
+      name,
+      msg: data.msg || "",
+      type: data.file ? "image" : "text",
+      file: data.file || null,
+      fileType: data.fileType || null,
+      time: new Date().toLocaleTimeString(),
     };
 
-    messages[currentRoom].push(msgObj);
-    if (messages[currentRoom].length > 100) messages[currentRoom].shift();
+    messages[room].push(msgObj);
+    if (messages[room].length > 100) messages[room].shift();
 
-    io.to(currentRoom).emit("message", msgObj);
+    io.to(room).emit("message", msgObj);
   });
 });
 
-const PORT = process.env.PORT || 10000;
-httpServer.listen(PORT, () =>
-  console.log(`🚀 Server running on port ${PORT}`)
-);
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
