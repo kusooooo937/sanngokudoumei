@@ -1,48 +1,42 @@
-import express from 'express';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
-import multer from 'multer';
-import path from 'path';
-import cors from 'cors';
-import fs from 'fs';
+import express from "express";
+import { createServer } from "http";
+import { Server } from "socket.io";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer, { cors: { origin: '*' } });
+const io = new Server(httpServer, { cors: { origin: "*" } });
 
-// CORS対応
-app.use(cors());
+const PORT = process.env.PORT || 10000;
+const uploadDir = "uploads";
 
-// uploadsフォルダ作成
-const uploadDir = path.join(process.cwd(), 'uploads');
+// アップロードフォルダ作成
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
-// Multer設定
+// Multer設定（ファイル名をASCII化）
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const fname = Date.now() + "-" + Math.round(Math.random() * 1e9) + ext;
+    cb(null, fname);
+  },
 });
 const upload = multer({ storage });
 
-// 静的ファイル配信
-app.use('/uploads', express.static(uploadDir));
-app.use(express.static('public'));
+app.use(express.static("public"));
+app.use("/uploads", express.static(uploadDir));
 
-// 画像アップロード
-app.post('/upload', upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file' });
-  const fileUrl = `/uploads/${req.file.filename}`;
-  res.json({ url: fileUrl });
-});
+// チャットメッセージ保存
+const messages = {}; // { room: [{id,name,msg,type,time,file,fileType},...] }
+const anonymousCounters = {};
 
-// メッセージ保存
-const messages = {};         // { room: [{id,name,msg,type,time}] }
-const anonymousCounters = {}; // { room: lastAnonymousId }
-
-io.on('connection', (socket) => {
+io.on("connection", (socket) => {
   let currentRoom = null;
 
-  socket.on('joinRoom', ({ room, name }) => {
+  socket.on("joinRoom", (room) => {
     if (currentRoom) socket.leave(currentRoom);
     currentRoom = room;
     socket.join(room);
@@ -50,51 +44,42 @@ io.on('connection', (socket) => {
     if (!messages[room]) messages[room] = [];
     if (!anonymousCounters[room]) anonymousCounters[room] = 1;
 
-    // 名前未入力なら名無しさん
-    let userName = name?.trim();
-    if (!userName) {
-      const id = anonymousCounters[room]++;
-      userName = `名無しさん#${id}`;
-    }
-
-    // 入室メッセージ
     const joinMsg = {
       id: null,
-      name: 'システム',
-      msg: `${userName} が入室しました`,
-      type: 'system',
-      time: new Date().toLocaleTimeString()
+      name: "システム",
+      msg: `【${socket.id.substring(0, 4)}】さんが入室しました`,
+      time: new Date().toLocaleTimeString(),
+      type: "system",
     };
-    io.to(room).emit('message', joinMsg);
+    io.to(room).emit("message", joinMsg);
 
-    // 履歴送信
-    socket.emit('history', messages[room]);
-
-    // ユーザー情報保存
-    socket.data.name = userName;
-    socket.data.room = room;
+    socket.emit("history", messages[room]);
   });
 
-  socket.on('message', (data) => {
-    const room = socket.data.room;
-    if (!room) return;
+  socket.on("message", (data) => {
+    if (!currentRoom) return;
 
-    let name = data.name?.trim() || socket.data.name || '名無しさん';
+    let name = data.name?.trim();
+    if (!name) {
+      const id = anonymousCounters[currentRoom]++;
+      name = `名無しさん#${id}`;
+    }
 
     const msgObj = {
-      id: socket.id.substring(0,4),
+      id: socket.id.substring(0, 4),
       name,
-      msg: data.msg,
-      type: data.type || 'text',
-      time: new Date().toLocaleTimeString()
+      msg: data.msg || "",
+      type: data.type || "text",
+      time: new Date().toLocaleTimeString(),
+      file: data.file || null,
+      fileType: data.fileType || null,
     };
 
-    messages[room].push(msgObj);
-    if (messages[room].length > 100) messages[room].shift();
+    messages[currentRoom].push(msgObj);
+    if (messages[currentRoom].length > 100) messages[currentRoom].shift();
 
-    io.to(room).emit('message', msgObj);
+    io.to(currentRoom).emit("message", msgObj);
   });
 });
 
-const PORT = process.env.PORT || 10000;
 httpServer.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
