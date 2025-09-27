@@ -1,4 +1,4 @@
-// chat.js
+// chat.js（通知機能なし）
 
 const socket = io("https://sanngokudoumei.onrender.com", {
   autoConnect: true,
@@ -11,11 +11,6 @@ let room = '';
 let userId = Math.floor(Math.random() * 1000);
 let userName = localStorage.getItem('chatUserName') || '名無しさん';
 
-// 通知権限リクエスト
-if ("Notification" in window && Notification.permission !== "granted") {
-  Notification.requestPermission();
-}
-
 const chat = document.getElementById('chat');
 const home = document.getElementById('home');
 const chatContainer = document.getElementById('chatContainer');
@@ -27,7 +22,7 @@ const fileInput = document.getElementById('fileInput');
 const sendBtn = document.getElementById('sendBtn');
 const recentRoomsDiv = document.getElementById('recentRooms');
 
-// LocalStorage で最近の部屋
+// 最近の部屋管理
 function getRecentRooms() {
   return JSON.parse(localStorage.getItem('recentRooms') || '[]');
 }
@@ -100,6 +95,13 @@ window.addEventListener('load', () => {
   }
 });
 
+// 入室ボタン
+joinBtn.addEventListener('click', () => {
+  const r = homeRoomInput.value.trim();
+  if (!r) return alert('部屋名を入力してください');
+  joinRoom(r, nameInput.value);
+});
+
 // 送信ボタン
 sendBtn.addEventListener('click', () => {
   const msg = messageInput.value.trim();
@@ -140,14 +142,7 @@ sendBtn.addEventListener('click', () => {
 socket.on('history', msgs => msgs.forEach(addMessage));
 
 // 新規メッセージ
-socket.on('message', data => {
-  addMessage(data);
-  if (data.id !== userId && Notification.permission === 'granted') {
-    const title = data.type === 'system' ? 'システムメッセージ' : `${data.name} さんからメッセージ`;
-    const body = data.msg || (data.fileType && data.fileType.startsWith('image') ? '画像が送信されました' : '');
-    new Notification(title, { body });
-  }
-});
+socket.on('message', addMessage);
 
 // 保存最後の部屋
 socket.on('connect', () => {
