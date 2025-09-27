@@ -1,68 +1,83 @@
-import express from 'express';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
+const socket = io('https://あなたのRenderサーバーURL/');
 
-const app = express();
-const httpServer = createServer(app);
-const io = new Server(httpServer, {
-    cors: { origin: '*' } // CORS対応
+let room = '';
+let userId = Math.floor(Math.random()*1000);
+let userName = '名無しさん';
+
+const chat = document.getElementById('chat');
+const home = document.getElementById('home');
+const chatContainer = document.getElementById('chatContainer');
+const joinBtn = document.getElementById('joinBtn');
+const homeRoomInput = document.getElementById('homeRoomInput');
+const nameInput = document.getElementById('nameInput');
+const messageInput = document.getElementById('messageInput');
+const fileInput = document.getElementById('fileInput');
+const sendBtn = document.getElementById('sendBtn');
+
+// メッセージ表示
+function addMessage(data) {
+    const id = data.id ? `#${data.id}` : '';
+    const div = document.createElement('div');
+    div.className = 'message';
+    let content = '';
+
+    if (data.type === 'system') {
+        content = `<i>${data.msg}</i>`;
+    } else if (data.type === 'image' && data.file) {
+        content = `<b>${data.name}${id}</b> [${data.time}]:<br>
+                   <img src="${data.file}" style="max-width:200px;">`;
+    } else {
+        content = `<b>${data.name}${id}</b> [${data.time}]: ${data.msg}`;
+    }
+
+    div.innerHTML = content;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+// 部屋入室
+joinBtn.addEventListener('click', () => {
+    const r = homeRoomInput.value.trim();
+    if (!r) return alert('部屋名を入力してください');
+    room = r;
+    home.style.display = 'none';
+    chatContainer.style.display = 'block';
+    socket.emit('joinRoom', room);
 });
 
-const messages = {};         // { roomName: [{id,msg,name,type,file,time},...] }
-const anonymousCounters = {}; // { roomName: lastAnonymousId }
+// 送信
+sendBtn.addEventListener('click', () => {
+    const msg = messageInput.value.trim();
+    if (!msg && !fileInput.files[0]) return;
+    let name = nameInput.value.trim() || userName;
+    const file = fileInput.files[0];
 
-io.on('connection', (socket) => {
-    let currentRoom = null;
-
-    // 部屋入室
-    socket.on('joinRoom', (room) => {
-        if (currentRoom) socket.leave(currentRoom);
-        currentRoom = room;
-        socket.join(room);
-
-        if (!messages[room]) messages[room] = [];
-        if (!anonymousCounters[room]) anonymousCounters[room] = 1;
-
-        // 入室メッセージ
-        const joinMsg = {
-            id: null,
-            name: 'システム',
-            msg: `【${socket.id.substring(0,4)}】さんが入室しました`,
-            type: 'system',
-            time: new Date().toLocaleTimeString()
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = () => {
+            socket.emit('message', {
+                room,
+                name,
+                file: reader.result,
+                type: 'image'
+            });
         };
-        io.to(room).emit('message', joinMsg);
-
-        // 過去メッセージ送信
-        socket.emit('history', messages[room]);
-    });
-
-    // メッセージ受信
-    socket.on('message', (data) => {
-        if (!currentRoom) return;
-
-        // 名前未設定なら名無しさん＋ID
-        let name = data.name?.trim();
-        if (!name) {
-            const id = anonymousCounters[currentRoom]++;
-            name = `名無しさん#${id}`;
-        }
-
-        const msgObj = {
-            id: socket.id.substring(0,4),
+        reader.readAsDataURL(file);
+    } else {
+        socket.emit('message', {
+            room,
             name,
-            msg: data.msg || '',
-            file: data.file || null,
-            type: data.type || 'text',
-            time: new Date().toLocaleTimeString()
-        };
+            msg,
+            type: 'text'
+        });
+    }
 
-        messages[currentRoom].push(msgObj);
-        if (messages[currentRoom].length > 100) messages[currentRoom].shift(); // 100件まで保持
-
-        io.to(currentRoom).emit('message', msgObj);
-    });
+    messageInput.value = '';
+    fileInput.value = '';
 });
 
-const PORT = process.env.PORT || 10000;
-httpServer.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+// 過去メッセージ受信
+socket.on('history', msgs => msgs.forEach(addMessage));
+
+// 新規メッセージ受信
+socket.on('message', addMessage);
