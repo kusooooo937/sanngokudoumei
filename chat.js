@@ -1,4 +1,4 @@
-const socket = io("https://sanngokudoumei.onrender.com/"); // RenderサーバーURL
+const socket = io("https://sanngokudoumei.onrender.com"); // RenderサーバーURL
 
 const home = document.getElementById("home");
 const chatContainer = document.getElementById("chatContainer");
