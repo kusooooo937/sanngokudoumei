@@ -1,14 +1,21 @@
 // chat.js
 
-const socket = io("https://sanngokudoumei.onrender.com"); // RenderデプロイURL
+const socket = io("https://sanngokudoumei.onrender.com", {
+  autoConnect: true,
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000
+});
 
 let room = '';
-let userId = Math.floor(Math.random() * 1000); // 仮ID
-let userName = '名無しさん';
+let userId = Math.floor(Math.random() * 1000);
+let userName = localStorage.getItem('chatUserName') || '名無しさん';
+
 // 通知権限リクエスト
 if ("Notification" in window && Notification.permission !== "granted") {
   Notification.requestPermission();
 }
+
 const chat = document.getElementById('chat');
 const home = document.getElementById('home');
 const chatContainer = document.getElementById('chatContainer');
@@ -20,20 +27,18 @@ const fileInput = document.getElementById('fileInput');
 const sendBtn = document.getElementById('sendBtn');
 const recentRoomsDiv = document.getElementById('recentRooms');
 
-// 最近使った部屋をLocalStorageで管理
+// LocalStorage で最近の部屋
 function getRecentRooms() {
   return JSON.parse(localStorage.getItem('recentRooms') || '[]');
 }
-
 function addRecentRoom(r) {
   let rooms = getRecentRooms();
-  rooms = rooms.filter(x => x !== r); // 重複削除
-  rooms.unshift(r); // 先頭に追加
-  if (rooms.length > 5) rooms.pop(); // 最大5件
+  rooms = rooms.filter(x => x !== r);
+  rooms.unshift(r);
+  if (rooms.length > 5) rooms.pop();
   localStorage.setItem('recentRooms', JSON.stringify(rooms));
   updateRecentRooms();
 }
-
 function updateRecentRooms() {
   if (!recentRoomsDiv) return;
   const rooms = getRecentRooms();
@@ -42,9 +47,7 @@ function updateRecentRooms() {
     const btn = document.createElement('button');
     btn.textContent = r;
     btn.style.margin = '2px';
-    btn.onclick = () => {
-      homeRoomInput.value = r;
-    };
+    btn.onclick = () => homeRoomInput.value = r;
     recentRoomsDiv.appendChild(btn);
   });
 }
@@ -59,15 +62,15 @@ function addMessage(data) {
     content = `<span class="text"><i>${data.msg}</i></span>`;
   } else if (data.file) {
     if (data.fileType && data.fileType.startsWith('image')) {
-      content = `<span class="text">${data.name}${id}:</span> 
+      content = `<span class="text">${data.name}${id}:</span>
                  <img src="${data.file}" style="max-width:200px; display:block; margin-top:5px;">`;
     } else {
-      content = `<span class="text">${data.name}${id}:</span> 
+      content = `<span class="text">${data.name}${id}:</span>
                  <a href="${data.file}" download>ファイルをダウンロード</a>`;
     }
   } else {
     content = `<span class="name">${data.name}${id}</span>
-               <span class="time">${data.time}</span>: 
+               <span class="time">${data.time}</span>:
                <span class="text">${data.msg}</span>`;
   }
   div.innerHTML = content;
@@ -76,24 +79,35 @@ function addMessage(data) {
 }
 
 // 部屋入室
-joinBtn.addEventListener('click', () => {
-  const r = homeRoomInput.value.trim();
-  if (!r) return alert('部屋名を入力してください');
+function joinRoom(r, name) {
   room = r;
+  userName = name || userName;
+  localStorage.setItem('chatUserName', userName);
+  addRecentRoom(r);
   home.style.display = 'none';
   chatContainer.style.display = 'block';
-  addRecentRoom(r);
-
-  // 修正: サーバーに合わせて "joinRoom" を送る
   socket.emit('joinRoom', room);
+}
+
+// 自動復元
+window.addEventListener('load', () => {
+  const lastRoom = localStorage.getItem('chatLastRoom');
+  const lastName = localStorage.getItem('chatUserName');
+  if (lastRoom) {
+    homeRoomInput.value = lastRoom;
+    nameInput.value = lastName || '名無しさん';
+    joinRoom(lastRoom, lastName);
+  }
 });
 
-// 送信
+// 送信ボタン
 sendBtn.addEventListener('click', () => {
   const msg = messageInput.value.trim();
-  if (!msg && !fileInput.files[0]) return;
-  let name = nameInput.value.trim() || userName;
+  const name = nameInput.value.trim() || userName;
+  localStorage.setItem('chatUserName', name);
   const file = fileInput.files[0];
+
+  if (!msg && !file) return;
 
   if (file) {
     const reader = new FileReader();
@@ -122,22 +136,22 @@ sendBtn.addEventListener('click', () => {
   fileInput.value = '';
 });
 
-// 過去メッセージ受信
-socket.on('history', msgs => {
-  msgs.forEach(addMessage);
-});
+// 過去メッセージ
+socket.on('history', msgs => msgs.forEach(addMessage));
 
-// 新規メッセージ受信
-socket.on('message', (data) => {
-  addMessage(data); // 既存のメッセージ表示
-
-  // 自分のメッセージは通知しない
-  if (data.id !== userId && Notification.permission === "granted") {
-    let title = data.type === 'system' ? 'システムメッセージ' : `${data.name} さんからメッセージ`;
-    let body = data.msg || (data.fileType && data.fileType.startsWith('image') ? '画像が送信されました' : '');
+// 新規メッセージ
+socket.on('message', data => {
+  addMessage(data);
+  if (data.id !== userId && Notification.permission === 'granted') {
+    const title = data.type === 'system' ? 'システムメッセージ' : `${data.name} さんからメッセージ`;
+    const body = data.msg || (data.fileType && data.fileType.startsWith('image') ? '画像が送信されました' : '');
     new Notification(title, { body });
   }
 });
 
-// 初期化
+// 保存最後の部屋
+socket.on('connect', () => {
+  if (room) localStorage.setItem('chatLastRoom', room);
+});
+
 updateRecentRooms();
