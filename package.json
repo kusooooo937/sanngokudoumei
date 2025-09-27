@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "2ch風チャットアプリ（部屋機能＋画像/動画対応）",
   "main": "server.js",
+  "type": "module",
   "scripts": {
     "start": "node server.js"
   },
