@@ -1,4 +1,4 @@
-// chat.js（通知機能なし）
+// chat.js（前のコードベース＋ホームに戻る機能）
 
 const socket = io("https://sanngokudoumei.onrender.com", {
   autoConnect: true,
@@ -21,8 +21,9 @@ const messageInput = document.getElementById('messageInput');
 const fileInput = document.getElementById('fileInput');
 const sendBtn = document.getElementById('sendBtn');
 const recentRoomsDiv = document.getElementById('recentRooms');
+const backHomeLink = document.getElementById('backHomeLink'); // ホームに戻るリンク
 
-// 最近の部屋管理
+// 最近使った部屋をLocalStorageで管理
 function getRecentRooms() {
   return JSON.parse(localStorage.getItem('recentRooms') || '[]');
 }
@@ -74,35 +75,19 @@ function addMessage(data) {
 }
 
 // 部屋入室
-function joinRoom(r, name) {
+joinBtn.addEventListener('click', () => {
+  const r = homeRoomInput.value.trim();
+  if (!r) return alert('部屋名を入力してください');
   room = r;
-  userName = name || userName;
+  userName = nameInput.value.trim() || userName;
   localStorage.setItem('chatUserName', userName);
   addRecentRoom(r);
   home.style.display = 'none';
   chatContainer.style.display = 'block';
   socket.emit('joinRoom', room);
-}
-
-// 自動復元
-window.addEventListener('load', () => {
-  const lastRoom = localStorage.getItem('chatLastRoom');
-  const lastName = localStorage.getItem('chatUserName');
-  if (lastRoom) {
-    homeRoomInput.value = lastRoom;
-    nameInput.value = lastName || '名無しさん';
-    joinRoom(lastRoom, lastName);
-  }
 });
 
-// 入室ボタン
-joinBtn.addEventListener('click', () => {
-  const r = homeRoomInput.value.trim();
-  if (!r) return alert('部屋名を入力してください');
-  joinRoom(r, nameInput.value);
-});
-
-// 送信ボタン
+// 送信
 sendBtn.addEventListener('click', () => {
   const msg = messageInput.value.trim();
   const name = nameInput.value.trim() || userName;
@@ -143,10 +128,31 @@ socket.on('history', msgs => msgs.forEach(addMessage));
 
 // 新規メッセージ
 socket.on('message', addMessage);
+socket.on('system', addMessage);
+
+// ホームに戻る
+backHomeLink.addEventListener('click', () => {
+  chatContainer.style.display = 'none';
+  home.style.display = 'block';
+  room = '';
+  chat.innerHTML = ''; // チャット履歴をクリア
+});
+
+// 自動復元
+window.addEventListener('load', () => {
+  const lastRoom = localStorage.getItem('chatLastRoom');
+  const lastName = localStorage.getItem('chatUserName');
+  if (lastRoom) {
+    homeRoomInput.value = lastRoom;
+    nameInput.value = lastName || '名無しさん';
+    room = lastRoom;
+  }
+});
 
 // 保存最後の部屋
 socket.on('connect', () => {
   if (room) localStorage.setItem('chatLastRoom', room);
 });
 
+// 初期化
 updateRecentRooms();
