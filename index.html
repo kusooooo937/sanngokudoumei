@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>複数部屋チャット</title>
   <style>
     body {
@@ -12,15 +12,49 @@
       margin: 0;
       padding: 0;
     }
+
     h1 {
       text-align: center;
-      margin-top: 10px;
+      margin-top: 20px;
     }
-    #chatContainer, #home {
+
+    /* ホーム画面 */
+    #home {
       width: 95%;
       max-width: 800px;
-      margin: 0 auto 20px;
+      margin: 20px auto;
+      text-align: center;
     }
+
+    #home input, #home button {
+      padding: 8px;
+      font-family: monospace;
+      margin: 5px;
+      font-size: 1rem;
+    }
+
+    #recentRooms {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 10px;
+    }
+
+    #recentRooms button {
+      margin: 2px;
+      padding: 5px 10px;
+      font-family: monospace;
+      cursor: pointer;
+    }
+
+    /* チャット画面 */
+    #chatContainer {
+      display: none;
+      width: 95%;
+      max-width: 800px;
+      margin: 20px auto;
+    }
+
     #chat {
       width: 100%;
       height: 60vh;
@@ -30,65 +64,73 @@
       background: #f9f9f9;
       box-sizing: border-box;
     }
+
     .message {
       border-bottom: 1px dashed #ccc;
       padding: 5px 0;
-      word-wrap: break-word;
+      word-break: break-word;
     }
+
     .name { color: #0066cc; margin-right: 5px; }
     .time { color: #888; margin-left: 5px; }
+    .text { color: #000; }
+
     #inputArea {
       display: flex;
       flex-wrap: wrap;
       gap: 5px;
-      margin-top: 5px;
+      margin-top: 10px;
     }
-    #roomInput, #nameInput, #messageInput, #fileInput {
+
+    #inputArea input[type=text] {
       padding: 8px;
       font-family: monospace;
-      box-sizing: border-box;
+      flex: 1;
+      min-width: 100px;
     }
-    #roomInput { flex: 1 0 30%; }
-    #nameInput { flex: 1 0 30%; }
-    #messageInput { flex: 2 0 60%; min-width: 100px; }
-    #fileInput { flex: 1 0 100%; }
-    #sendBtn, #joinBtn {
+
+    #inputArea input[type=file] {
+      flex-basis: 100%;
+    }
+
+    #inputArea button {
       padding: 8px 16px;
       font-family: monospace;
       cursor: pointer;
-      flex: 1 0 auto;
-    }
-    #recentRooms button {
-      margin: 2px;
-      flex: 1 0 auto;
     }
 
-    @media (max-width: 500px) {
-      #inputArea { flex-direction: column; }
-      #messageInput { flex: 1 0 100%; }
-      #roomInput, #nameInput, #sendBtn { flex: 1 0 100%; }
+    @media (max-width: 600px) {
+      #inputArea {
+        flex-direction: column;
+      }
+      #inputArea input[type=text], #inputArea button {
+        width: 100%;
+      }
     }
   </style>
 </head>
 <body>
   <h1>複数部屋チャット</h1>
 
-  <div id="home" style="text-align:center; margin:10px;">
-    部屋名を入力して入室してください:
+  <!-- ホーム画面 -->
+  <div id="home">
+    <p>部屋名を入力して入室してください:</p>
     <input id="homeRoomInput" type="text" placeholder="部屋名">
     <button id="joinBtn">入室</button>
-    <div id="recentRooms" style="margin-top:10px;"></div>
+
+    <div id="recentRooms"></div>
   </div>
 
-  <div id="chatContainer" style="display:none;">
+  <!-- チャット画面 -->
+  <div id="chatContainer">
     <div id="chat"></div>
     <div id="inputArea">
       <input id="nameInput" type="text" placeholder="名前">
-      <input id="messageInput" type="text" placeholder="書き込み…">
+      <input id="messageInput" type="text" placeholder="メッセージ">
       <input id="fileInput" type="file" accept="image/*">
-      <button id="sendBtn">書き込む</button>
+      <button id="sendBtn">送信</button>
     </div>
-    <p style="text-align:center;"><a href="#" onclick="location.reload();">ホームに戻る</a></p>
+    <p style="text-align:center;"><a href="#" id="backHome">ホームに戻る</a></p>
   </div>
 
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
