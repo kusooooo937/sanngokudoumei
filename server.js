@@ -3,31 +3,46 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import multer from 'multer';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import cors from 'cors';
 import fs from 'fs';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: { origin: '*' }
+const io = new Server(httpServer, { cors: { origin: '*' } });
+
+// CORS対応
+app.use(cors());
+
+// uploadsフォルダ作成
+const uploadDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+
+// Multer設定
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+});
+const upload = multer({ storage });
+
+// 静的ファイル配信
+app.use('/uploads', express.static(uploadDir));
+app.use(express.static('public'));
+
+// 画像アップロード
+app.post('/upload', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file' });
+  const fileUrl = `/uploads/${req.file.filename}`;
+  res.json({ url: fileUrl });
 });
 
-// 画像保存設定
-const upload = multer({ dest: path.join(__dirname, 'uploads/') });
-
-app.use(express.static('public'));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-const messages = {}; // { roomName: [msgObj,...] }
-const anonymousCounters = {};
+// メッセージ保存
+const messages = {};         // { room: [{id,name,msg,type,time}] }
+const anonymousCounters = {}; // { room: lastAnonymousId }
 
 io.on('connection', (socket) => {
   let currentRoom = null;
 
-  socket.on('joinRoom', (room) => {
+  socket.on('joinRoom', ({ room, name }) => {
     if (currentRoom) socket.leave(currentRoom);
     currentRoom = room;
     socket.join(room);
@@ -35,11 +50,18 @@ io.on('connection', (socket) => {
     if (!messages[room]) messages[room] = [];
     if (!anonymousCounters[room]) anonymousCounters[room] = 1;
 
+    // 名前未入力なら名無しさん
+    let userName = name?.trim();
+    if (!userName) {
+      const id = anonymousCounters[room]++;
+      userName = `名無しさん#${id}`;
+    }
+
     // 入室メッセージ
     const joinMsg = {
       id: null,
       name: 'システム',
-      msg: `【${socket.id.substring(0,4)}】さんが入室しました`,
+      msg: `${userName} が入室しました`,
       type: 'system',
       time: new Date().toLocaleTimeString()
     };
@@ -47,17 +69,17 @@ io.on('connection', (socket) => {
 
     // 履歴送信
     socket.emit('history', messages[room]);
+
+    // ユーザー情報保存
+    socket.data.name = userName;
+    socket.data.room = room;
   });
 
   socket.on('message', (data) => {
-    const room = currentRoom;
+    const room = socket.data.room;
     if (!room) return;
 
-    let name = data.name?.trim();
-    if (!name) {
-      const id = anonymousCounters[room]++;
-      name = `名無しさん#${id}`;
-    }
+    let name = data.name?.trim() || socket.data.name || '名無しさん';
 
     const msgObj = {
       id: socket.id.substring(0,4),
@@ -72,14 +94,6 @@ io.on('connection', (socket) => {
 
     io.to(room).emit('message', msgObj);
   });
-});
-
-// 画像アップロードAPI
-app.post('/upload', upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file' });
-
-  const fileUrl = `/uploads/${req.file.filename}`;
-  res.json({ url: fileUrl });
 });
 
 const PORT = process.env.PORT || 10000;
