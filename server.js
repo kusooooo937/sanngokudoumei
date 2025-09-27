@@ -1,59 +1,85 @@
-// Render にデプロイしたサーバーURLに差し替える
-const socket = io("https://sanngokudoumei.onrender.com/");
+// Render のサーバーURLに接続
+const socket = io("https://sanngokudoumei.onrender.com");
 
-const joinBtn = document.getElementById("joinBtn");
 const roomInput = document.getElementById("roomInput");
 const nameInput = document.getElementById("nameInput");
-const msgInput = document.getElementById("msgInput");
+const messageInput = document.getElementById("messageInput");
+const fileInput = document.getElementById("fileInput");
+const joinBtn = document.getElementById("joinBtn");
 const sendBtn = document.getElementById("sendBtn");
+const chatContainer = document.getElementById("chatContainer");
+const home = document.getElementById("home");
 const chatArea = document.getElementById("chat");
 
+let currentRoom = "";
+let userId = Math.floor(Math.random() * 1000);
+
+// メッセージ表示
+function addMessage(data) {
+  const id = data.id ? `#${data.id}` : "";
+  const div = document.createElement("div");
+  div.className = "message";
+  let content = "";
+
+  if (data.type === "system") {
+    content = `<i>${data.msg}</i>`;
+  } else if (data.type === "image" && data.msg) {
+    content = `<b>${data.name}${id}</b> [${data.time}]: <br>
+               <img src="${data.msg}" style="max-width:200px;">`;
+  } else if (data.type === "video" && data.msg) {
+    content = `<b>${data.name}${id}</b> [${data.time}]: <br>
+               <video src="${data.msg}" controls style="max-width:200px;"></video>`;
+  } else {
+    content = `<b>${data.name}${id}</b> [${data.time}]: ${data.msg}`;
+  }
+
+  div.innerHTML = content;
+  chatArea.appendChild(div);
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+// 入室
 joinBtn.onclick = () => {
   const room = roomInput.value.trim();
   if (!room) return alert("部屋名を入力してください");
-  socket.emit("joinRoom", room);
+  currentRoom = room;
+  home.style.display = "none";
+  chatContainer.style.display = "block";
+
+  const name = nameInput.value.trim() || "名無しさん";
+  socket.emit("joinRoom", { room, name });
 };
 
+// 送信
 sendBtn.onclick = () => {
-  const msg = msgInput.value.trim();
-  if (!msg) return;
-  socket.emit("message", { name: nameInput.value, msg });
-  msgInput.value = "";
-};
+  const name = nameInput.value.trim() || "名無しさん";
+  const msg = messageInput.value.trim();
+  const file = fileInput.files[0];
 
-// 画像送信
-function sendImage(base64) {
-  socket.emit("image", { name: nameInput.value, url: base64 });
-}
+  if (!msg && !file) return;
 
-// 動画送信
-function sendVideo(url) {
-  socket.emit("video", { name: nameInput.value, url });
-}
-
-// 履歴表示
-socket.on("history", (msgs) => {
-  chatArea.innerHTML = "";
-  msgs.forEach(renderMessage);
-});
-
-// 新着メッセージ表示
-socket.on("message", renderMessage);
-
-function renderMessage(msg) {
-  const div = document.createElement("div");
-  div.innerHTML = `<b>${msg.name}</b> [${msg.time}] : `;
-
-  if (msg.type === "text") {
-    div.innerHTML += msg.msg;
-  } else if (msg.type === "image") {
-    div.innerHTML += `<br><img src="${msg.msg}" style="max-width:200px;">`;
-  } else if (msg.type === "video") {
-    div.innerHTML += `<br><video src="${msg.msg}" controls style="max-width:200px;"></video>`;
-  } else if (msg.type === "system") {
-    div.style.color = "gray";
-    div.innerHTML = msg.msg;
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const type = file.type.startsWith("image") ? "image" : "video";
+      socket.emit("message", {
+        room: currentRoom,
+        name,
+        file: reader.result,
+        fileType: file.type,
+        type
+      });
+    };
+    reader.readAsDataURL(file);
+  } else {
+    socket.emit("message", { room: currentRoom, name, msg, type: "text" });
   }
 
-  chatArea.appendChild(div);
-}
+  messageInput.value = "";
+  fileInput.value = "";
+};
+
+// 過去メッセージ受信
+socket.on("history", (msgs) => msgs.forEach(addMessage));
+// 新規メッセージ受信
+socket.on("message", addMessage);
