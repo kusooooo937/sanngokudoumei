@@ -1,4 +1,4 @@
-const socket = io('https://sanngokudoumei.onrender.com/');
+const socket = io('https://sanngokudoumei.onrender.com');
 
 let room = '';
 let userId = Math.floor(Math.random()*1000);
