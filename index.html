@@ -2,61 +2,49 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>複数部屋チャット</title>
   <style>
-    body { font-family: monospace; background:#fff; color:#000; margin:0; padding:0; }
-    h1 { text-align:center; margin-top:10px; }
-
-    #chatContainer, #home { width:90%; max-width:600px; margin:20px auto; }
-
-    #chat { width:100%; height:60vh; border:1px solid #ccc; overflow-y:auto; padding:10px; background:#f9f9f9; }
+    body { font-family: monospace; margin:0; padding:0; background:#fff; color:#000; }
+    #chat { width:90%; max-width:800px; height:60vh; margin:20px auto; border:1px solid #ccc; 
+            overflow-y:auto; padding:10px; background:#f9f9f9; }
     .message { border-bottom:1px dashed #ccc; padding:5px 0; }
     .name { color:#0066cc; margin-right:5px; }
     .time { color:#888; margin-left:5px; }
-    
-    #inputArea { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
-    #nameInput, #messageInput, #fileInput, #sendBtn { padding:8px; font-family:monospace; }
-    #nameInput { flex:1 1 100px; min-width:80px; }
-    #messageInput { flex:2 1 150px; min-width:120px; }
-    #fileInput { flex:1 1 80px; }
-    #sendBtn { flex:0 1 auto; }
-
-    #recentRooms button { margin:3px; padding:5px 10px; font-size:14px; cursor:pointer; }
-
-    @media (max-width:480px) {
-      #inputArea { flex-direction: column; }
-      #messageInput, #nameInput, #fileInput, #sendBtn { flex:1 1 100%; }
-    }
+    #inputArea { width:90%; max-width:800px; margin:0 auto 20px; display:flex; gap:5px; flex-wrap: wrap; }
+    #home, #chatContainer { width:100%; text-align:center; margin-top:10px; }
+    input, button { padding:8px; font-family:monospace; }
+    #homeRoomInput { width:120px; }
+    #nameInput { width:120px; }
+    #messageInput { flex:1; min-width:100px; }
+    #fileInput { flex-basis:100%; }
+    #sendBtn { width:80px; }
+    #recentRooms button { margin:2px; }
   </style>
 </head>
 <body>
-  <h1>複数部屋チャット</h1>
+  <h1 style="text-align:center;">複数部屋チャット</h1>
 
   <!-- ホーム画面 -->
   <div id="home">
-    <div style="margin-bottom:10px;">
-      部屋名を入力して入室してください:
-      <input id="homeRoomInput" type="text" placeholder="部屋名">
-      <button id="joinBtn">入室</button>
-    </div>
-
-    <!-- 最近使った部屋リスト -->
-    <div id="recentRooms">
-      <p>最近使った部屋:</p>
-    </div>
+    部屋名を入力して入室してください:<br>
+    <input id="homeRoomInput" type="text" placeholder="部屋名">
+    <input id="nameInput" type="text" placeholder="名前">
+    <button id="joinBtn">入室</button>
+    <div id="recentRooms"></div>
   </div>
 
   <!-- チャット画面 -->
   <div id="chatContainer" style="display:none;">
     <div id="chat"></div>
     <div id="inputArea">
-      <input id="nameInput" type="text" placeholder="名前">
       <input id="messageInput" type="text" placeholder="書き込み…">
       <input id="fileInput" type="file" accept="image/*">
       <button id="sendBtn">送信</button>
     </div>
-    <p style="text-align:center;"><a href="#" onclick="location.reload();">ホームに戻る</a></p>
+    <p style="text-align:center;">
+      <a href="#" id="backHomeLink">ホームに戻る</a>
+    </p>
   </div>
 
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
