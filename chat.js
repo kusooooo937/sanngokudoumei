@@ -5,7 +5,10 @@ const socket = io("https://sanngokudoumei.onrender.com"); // RenderデプロイU
 let room = '';
 let userId = Math.floor(Math.random() * 1000); // 仮ID
 let userName = '名無しさん';
-
+// 通知権限リクエスト
+if ("Notification" in window && Notification.permission !== "granted") {
+  Notification.requestPermission();
+}
 const chat = document.getElementById('chat');
 const home = document.getElementById('home');
 const chatContainer = document.getElementById('chatContainer');
@@ -125,7 +128,16 @@ socket.on('history', msgs => {
 });
 
 // 新規メッセージ受信
-socket.on('message', addMessage);
+socket.on('message', (data) => {
+  addMessage(data); // 既存のメッセージ表示
+
+  // 自分のメッセージは通知しない
+  if (data.id !== userId && Notification.permission === "granted") {
+    let title = data.type === 'system' ? 'システムメッセージ' : `${data.name} さんからメッセージ`;
+    let body = data.msg || (data.fileType && data.fileType.startsWith('image') ? '画像が送信されました' : '');
+    new Notification(title, { body });
+  }
+});
 
 // 初期化
 updateRecentRooms();
