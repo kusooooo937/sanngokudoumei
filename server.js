@@ -1,85 +1,62 @@
-// Render のサーバーURLに接続
-const socket = io("https://sanngokudoumei.onrender.com");
+import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 
-const roomInput = document.getElementById("roomInput");
-const nameInput = document.getElementById("nameInput");
-const messageInput = document.getElementById("messageInput");
-const fileInput = document.getElementById("fileInput");
-const joinBtn = document.getElementById("joinBtn");
-const sendBtn = document.getElementById("sendBtn");
-const chatContainer = document.getElementById("chatContainer");
-const home = document.getElementById("home");
-const chatArea = document.getElementById("chat");
+const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, { cors: { origin: '*' } });
 
-let currentRoom = "";
-let userId = Math.floor(Math.random() * 1000);
+const messages = {}; // { roomName: [msgObj,...] }
+const anonymousCounters = {}; // { roomName: lastAnonymousId }
 
-// メッセージ表示
-function addMessage(data) {
-  const id = data.id ? `#${data.id}` : "";
-  const div = document.createElement("div");
-  div.className = "message";
-  let content = "";
+io.on('connection', (socket) => {
+  let currentRoom = null;
 
-  if (data.type === "system") {
-    content = `<i>${data.msg}</i>`;
-  } else if (data.type === "image" && data.msg) {
-    content = `<b>${data.name}${id}</b> [${data.time}]: <br>
-               <img src="${data.msg}" style="max-width:200px;">`;
-  } else if (data.type === "video" && data.msg) {
-    content = `<b>${data.name}${id}</b> [${data.time}]: <br>
-               <video src="${data.msg}" controls style="max-width:200px;"></video>`;
-  } else {
-    content = `<b>${data.name}${id}</b> [${data.time}]: ${data.msg}`;
-  }
+  socket.on('join', ({ room, name, id }) => {
+    if (currentRoom) socket.leave(currentRoom);
+    currentRoom = room;
+    socket.join(room);
 
-  div.innerHTML = content;
-  chatArea.appendChild(div);
-  chatArea.scrollTop = chatArea.scrollHeight;
-}
+    if (!messages[room]) messages[room] = [];
+    if (!anonymousCounters[room]) anonymousCounters[room] = 1;
 
-// 入室
-joinBtn.onclick = () => {
-  const room = roomInput.value.trim();
-  if (!room) return alert("部屋名を入力してください");
-  currentRoom = room;
-  home.style.display = "none";
-  chatContainer.style.display = "block";
-
-  const name = nameInput.value.trim() || "名無しさん";
-  socket.emit("joinRoom", { room, name });
-};
-
-// 送信
-sendBtn.onclick = () => {
-  const name = nameInput.value.trim() || "名無しさん";
-  const msg = messageInput.value.trim();
-  const file = fileInput.files[0];
-
-  if (!msg && !file) return;
-
-  if (file) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const type = file.type.startsWith("image") ? "image" : "video";
-      socket.emit("message", {
-        room: currentRoom,
-        name,
-        file: reader.result,
-        fileType: file.type,
-        type
-      });
+    // 入室メッセージ
+    const joinMsg = {
+      id: null,
+      name: 'システム',
+      msg: `【${socket.id.substring(0,4)}】さんが入室しました`,
+      type: 'system',
+      time: new Date().toLocaleTimeString()
     };
-    reader.readAsDataURL(file);
-  } else {
-    socket.emit("message", { room: currentRoom, name, msg, type: "text" });
-  }
+    io.to(room).emit('message', joinMsg);
 
-  messageInput.value = "";
-  fileInput.value = "";
-};
+    // 過去メッセージ送信
+    socket.emit('history', messages[room]);
+  });
 
-// 過去メッセージ受信
-socket.on("history", (msgs) => msgs.forEach(addMessage));
-// 新規メッセージ受信
-socket.on("message", addMessage);
+  socket.on('message', (data) => {
+    if (!currentRoom) return;
+
+    // 名前未設定なら名無しさん＋ID
+    let name = data.name?.trim();
+    if (!name) name = `名無しさん#${anonymousCounters[currentRoom]++}`;
+
+    const msgObj = {
+      id: socket.id.substring(0,4),
+      name,
+      msg: data.msg || data.file || '',
+      file: data.file || null,
+      fileType: data.fileType || null,
+      type: data.type,
+      time: new Date().toLocaleTimeString()
+    };
+
+    messages[currentRoom].push(msgObj);
+    if (messages[currentRoom].length > 100) messages[currentRoom].shift();
+
+    io.to(currentRoom).emit('message', msgObj);
+  });
+});
+
+const PORT = process.env.PORT || 10000;
+httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
