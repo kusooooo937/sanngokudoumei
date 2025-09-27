@@ -5,12 +5,10 @@ import { Server } from 'socket.io';
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-    cors: { origin: '*' } // クロスオリジン対応
+    cors: { origin: '*' }
 });
 
-app.use(express.static('public'));
-
-const messages = {}; // { roomName: [{id,msg,name,file,fileType,time},...] }
+const messages = {};          // { roomName: [{id,msg,name,type,file,time},...] }
 const anonymousCounters = {}; // { roomName: lastAnonymousId }
 
 io.on('connection', (socket) => {
@@ -29,22 +27,21 @@ io.on('connection', (socket) => {
             id: null,
             name: 'システム',
             msg: `【${socket.id.substring(0,4)}】さんが入室しました`,
+            type: 'system',
             time: new Date().toLocaleTimeString()
         };
         io.to(room).emit('message', joinMsg);
 
-        // 過去履歴を送信
+        // 過去メッセージ送信
         socket.emit('history', messages[room]);
     });
 
     socket.on('message', (data) => {
-        const room = currentRoom;
-        if (!room) return;
+        if (!currentRoom) return;
 
-        // 名前未設定なら名無しさん＋ID
         let name = data.name?.trim();
         if (!name) {
-            const id = anonymousCounters[room]++;
+            const id = anonymousCounters[currentRoom]++;
             name = `名無しさん#${id}`;
         }
 
@@ -53,16 +50,16 @@ io.on('connection', (socket) => {
             name,
             msg: data.msg || '',
             file: data.file || null,
-            fileType: data.fileType || null,
+            type: data.type || 'text',
             time: new Date().toLocaleTimeString()
         };
 
-        messages[room].push(msgObj);
-        if (messages[room].length > 100) messages[room].shift();
+        messages[currentRoom].push(msgObj);
+        if (messages[currentRoom].length > 100) messages[currentRoom].shift();
 
-        io.to(room).emit('message', msgObj);
+        io.to(currentRoom).emit('message', msgObj);
     });
 });
 
 const PORT = process.env.PORT || 10000;
-httpServer.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
