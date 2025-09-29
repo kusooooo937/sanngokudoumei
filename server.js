@@ -1,72 +1,52 @@
-import express from "express";
-import http from "http";
-import { Server } from "socket.io";
-import path from "path";
-import { fileURLToPath } from "url";
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server);
 
-const PORT = process.env.PORT || 3000;
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
-app.get("/chat.js", (req, res) => res.sendFile(path.join(__dirname, "chat.js")));
-
-const messages = {}; // { roomName: [{id, name, msg, type, time, fileType, file}] }
-const anonymousCounters = {}; // { roomName: lastAnonymousId }
+// 部屋ごとの履歴保存用
+const roomMessages = {};
 
 io.on("connection", (socket) => {
-  let currentRoom = null;
+  console.log("a user connected");
 
   socket.on("joinRoom", (room) => {
-    if (currentRoom) socket.leave(currentRoom);
-    currentRoom = room;
     socket.join(room);
 
-    if (!messages[room]) messages[room] = [];
-    if (!anonymousCounters[room]) anonymousCounters[room] = 1;
+    // 過去ログがあれば送信
+    if (roomMessages[room]) {
+      socket.emit("history", roomMessages[room]);
+    }
 
-    const joinMsg = {
-      id: null,
-      name: "system",
-      msg: `【${socket.id.substring(0, 4)}】さんが入室しました`,
+    // システムメッセージ
+    io.to(room).emit("system", {
       type: "system",
-      time: new Date().toLocaleTimeString(),
-    };
-    io.to(room).emit("message", joinMsg);
-
-    socket.emit("history", messages[room]);
+      msg: `誰かが部屋「${room}」に入りました`,
+      time: new Date().toLocaleTimeString()
+    });
   });
 
   socket.on("message", (data) => {
-    const room = currentRoom;
-    if (!room) return;
+    const room = data.room;
+    if (!roomMessages[room]) roomMessages[room] = [];
+    roomMessages[room].push(data);
 
-    let name = data.name?.trim();
-    if (!name) {
-      const id = anonymousCounters[room]++;
-      name = `名無しさん#${id}`;
+    // 履歴の件数制限（最新50件だけ保持）
+    if (roomMessages[room].length > 50) {
+      roomMessages[room].shift();
     }
 
-    const msgObj = {
-      id: socket.id.substring(0, 4),
-      name,
-      msg: data.msg || "",
-      type: data.file ? "image" : "text",
-      file: data.file || null,
-      fileType: data.fileType || null,
-      time: new Date().toLocaleTimeString(),
-    };
+    io.to(room).emit("message", data);
+  });
 
-    messages[room].push(msgObj);
-    if (messages[room].length > 100) messages[room].shift();
-
-    io.to(room).emit("message", msgObj);
+  socket.on("disconnect", () => {
+    console.log("user disconnected");
   });
 });
 
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
