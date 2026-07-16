@@ -17,6 +17,44 @@ const sendBtn = document.getElementById('sendBtn');
 const recentRoomsDiv = document.getElementById('recentRooms');
 const homeLink = document.getElementById('backHome'); // ホーム戻るリンク
 
+// 画像をリサイズしてBase64にする関数
+function resizeImage(file, maxWidth = 800, maxHeight = 800, quality = 0.7) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height *= maxWidth / width;
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width *= maxHeight / height;
+            height = maxHeight;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 // 最近使った部屋
 function getRecentRooms() {
   return JSON.parse(localStorage.getItem('recentRooms') || '[]');
@@ -83,7 +121,7 @@ joinBtn.addEventListener('click', () => {
 });
 
 // メッセージ送信
-sendBtn.addEventListener('click', () => {
+sendBtn.addEventListener('click', async () => {
   const msg = messageInput.value.trim();
   const name = nameInput.value.trim() || userName;
   localStorage.setItem('chatUserName', name);
@@ -92,18 +130,26 @@ sendBtn.addEventListener('click', () => {
   if (!msg && !file) return;
 
   if (file) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      socket.emit('message', {
-        room,
-        id: userId,
-        name,
-        file: reader.result,
-        fileType: file.type,
-        time: new Date().toLocaleTimeString()
+    // 画像ファイルならリサイズ、それ以外(PDF等)はそのまま
+    let fileData;
+    if (file.type.startsWith('image')) {
+      fileData = await resizeImage(file, 800, 800, 0.7);
+    } else {
+      fileData = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(file);
       });
-    };
-    reader.readAsDataURL(file);
+    }
+
+    socket.emit('message', {
+      room,
+      id: userId,
+      name,
+      file: fileData,
+      fileType: file.type,
+      time: new Date().toLocaleTimeString()
+    });
   } else {
     socket.emit('message', {
       room,
@@ -135,6 +181,3 @@ homeLink.addEventListener('click', (e) => {
 
 // 初期化
 updateRecentRooms();
-
-
- 
