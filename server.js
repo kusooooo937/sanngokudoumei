@@ -104,7 +104,9 @@ io.on("connection", (socket) => {
     saveMessages();
     socket.emit("createBoardResult", { ok: true, name });
     broadcastBoards();
-  });// 板を削除する
+  });
+
+  // 板を削除する
   socket.on("deleteBoard", (name) => {
     name = (name || "").trim();
     if (!name || !boards[name]) return;
