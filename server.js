@@ -17,30 +17,94 @@ const __dirname = path.dirname(__filename);
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 app.get("/chat.js", (req, res) => res.sendFile(path.join(__dirname, "chat.js")));
 
-// メッセージ保存用ファイル
-const DATA_FILE = path.join(__dirname, "messages.json");
+// ===== データ永続化 =====
+const MESSAGES_FILE = path.join(__dirname, "messages.json");
+const BOARDS_FILE = path.join(__dirname, "boards.json");
 
-// 部屋ごとのメッセージ保持（ファイルから復元）
 let messages = {};
-if (fs.existsSync(DATA_FILE)) {
-  try {
-    messages = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
-  } catch (e) {
-    console.error("メッセージファイルの読み込みに失敗:", e);
-    messages = {};
+if (fs.existsSync(MESSAGES_FILE)) {
+  try { messages = JSON.parse(fs.readFileSync(MESSAGES_FILE, "utf-8")); }
+  catch (e) { console.error("messages.json読み込み失敗:", e); messages = {}; }
+}
+
+// boards: { 板名: { tags: [], createdAt, lastActive, messageCount } }
+let boards = {};
+if (fs.existsSync(BOARDS_FILE)) {
+  try { boards = JSON.parse(fs.readFileSync(BOARDS_FILE, "utf-8")); }
+  catch (e) { console.error("boards.json読み込み失敗:", e); boards = {}; }
+}
+
+const anonymousCounters = {};
+
+function saveMessages() {
+  fs.writeFile(MESSAGES_FILE, JSON.stringify(messages), (err) => {
+    if (err) console.error("messages.json保存失敗:", err);
+  });
+}
+function saveBoards() {
+  fs.writeFile(BOARDS_FILE, JSON.stringify(boards), (err) => {
+    if (err) console.error("boards.json保存失敗:", err);
+  });
+}
+
+// 既存の部屋がboardsに未登録なら登録する(後方互換)
+function ensureBoard(name) {
+  if (!boards[name]) {
+    boards[name] = {
+      tags: [],
+      createdAt: Date.now(),
+      lastActive: Date.now(),
+      messageCount: (messages[name] || []).length,
+    };
   }
 }
-const anonymousCounters = {}; // { roomName: lastAnonymousId }
+Object.keys(messages).forEach(ensureBoard);
 
-// ファイルに保存する関数
-function saveMessages() {
-  fs.writeFile(DATA_FILE, JSON.stringify(messages), (err) => {
-    if (err) console.error("メッセージファイルの保存に失敗:", err);
-  });
+// 現在の人数を付与した板一覧を作る
+function getBoardList() {
+  return Object.entries(boards).map(([name, info]) => ({
+    name,
+    tags: info.tags || [],
+    createdAt: info.createdAt,
+    lastActive: info.lastActive,
+    messageCount: info.messageCount || 0,
+    userCount: io.sockets.adapter.rooms.get(name)?.size || 0,
+  }));
+}
+
+function broadcastBoards() {
+  io.emit("boardsUpdated", getBoardList());
 }
 
 io.on("connection", (socket) => {
   let currentRoom = null;
+
+  // 接続時に板一覧を送る
+  socket.emit("boardsUpdated", getBoardList());
+
+  // 板を作る
+  socket.on("createBoard", ({ name, tags }) => {
+    name = (name || "").trim();
+    if (!name) {
+      socket.emit("createBoardResult", { ok: false, message: "板名を入力してください" });
+      return;
+    }
+    if (boards[name]) {
+      socket.emit("createBoardResult", { ok: false, message: "その板名はすでに存在します" });
+      return;
+    }
+    boards[name] = {
+      tags: Array.isArray(tags) ? tags.slice(0, 10) : [],
+      createdAt: Date.now(),
+      lastActive: Date.now(),
+      messageCount: 0,
+    };
+    if (!messages[name]) messages[name] = [];
+    saveBoards();
+    saveMessages();
+    socket.emit("createBoardResult", { ok: true, name });
+    broadcastBoards();
+  });
 
   // 部屋入室
   socket.on("joinRoom", (room) => {
@@ -50,8 +114,10 @@ io.on("connection", (socket) => {
 
     if (!messages[room]) messages[room] = [];
     if (!anonymousCounters[room]) anonymousCounters[room] = 1;
+    ensureBoard(room);
+    boards[room].lastActive = Date.now();
+    saveBoards();
 
-    // 入室メッセージ
     const joinMsg = {
       id: null,
       name: "system",
@@ -61,12 +127,11 @@ io.on("connection", (socket) => {
     };
     io.to(room).emit("message", joinMsg);
 
-    // 参加人数更新
     const users = io.sockets.adapter.rooms.get(room)?.size || 0;
     io.to(room).emit("roomUsers", { room, count: users });
 
-    // 過去メッセージ送信
     socket.emit("history", messages[room]);
+    broadcastBoards();
   });
 
   // メッセージ受信
@@ -74,7 +139,6 @@ io.on("connection", (socket) => {
     if (!currentRoom) return;
     const room = currentRoom;
 
-    // 名前が空の場合
     let name = data.name?.trim();
     if (!name) {
       const id = anonymousCounters[room]++;
@@ -92,17 +156,23 @@ io.on("connection", (socket) => {
     };
 
     messages[room].push(msgObj);
-    if (messages[room].length > 200) messages[room].shift(); // 最新200件のみ保持
+    if (messages[room].length > 200) messages[room].shift();
     saveMessages();
 
+    ensureBoard(room);
+    boards[room].messageCount = messages[room].length;
+    boards[room].lastActive = Date.now();
+    saveBoards();
+
     io.to(room).emit("message", msgObj);
+    broadcastBoards();
   });
 
-  // 切断
   socket.on("disconnect", () => {
     if (currentRoom) {
       const users = io.sockets.adapter.rooms.get(currentRoom)?.size || 0;
       io.to(currentRoom).emit("roomUsers", { room: currentRoom, count: users });
+      broadcastBoards();
     }
   });
 });
