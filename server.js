@@ -104,6 +104,21 @@ io.on("connection", (socket) => {
     saveMessages();
     socket.emit("createBoardResult", { ok: true, name });
     broadcastBoards();
+  });// 板を削除する
+  socket.on("deleteBoard", (name) => {
+    name = (name || "").trim();
+    if (!name || !boards[name]) return;
+
+    delete boards[name];
+    delete messages[name];
+    delete anonymousCounters[name];
+    saveBoards();
+    saveMessages();
+
+    // その板に今いる人たちをホームに戻す
+    io.to(name).emit("boardDeleted", { name });
+
+    broadcastBoards();
   });
 
   // 部屋入室
