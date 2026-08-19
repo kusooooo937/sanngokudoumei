@@ -18,33 +18,86 @@
       margin-top: 20px;
     }
 
+    h2 {
+      font-size: 1rem;
+      margin: 20px auto 5px;
+      max-width: 800px;
+      width: 95%;
+      border-bottom: 2px solid #000;
+      padding-bottom: 4px;
+    }
+
     /* ホーム画面 */
     #home {
       width: 95%;
       max-width: 800px;
       margin: 20px auto;
-      text-align: center;
+    }
+
+    #searchArea, #createArea {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      justify-content: center;
+      margin-bottom: 10px;
     }
 
     #home input, #home button {
       padding: 8px;
       font-family: monospace;
-      margin: 5px;
       font-size: 1rem;
     }
 
-    #recentRooms {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      margin-top: 10px;
+    #createArea {
+      border: 1px dashed #999;
+      padding: 10px;
+      border-radius: 6px;
     }
 
-    #recentRooms button {
-      margin: 2px;
-      padding: 5px 10px;
-      font-family: monospace;
+    .boardList {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .boardCard {
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      padding: 8px 10px;
       cursor: pointer;
+      background: #f9f9f9;
+      min-width: 120px;
+      max-width: 220px;
+    }
+    .boardCard:hover {
+      background: #eef6ff;
+      border-color: #0066cc;
+    }
+    .boardName {
+      font-weight: bold;
+      word-break: break-word;
+    }
+    .boardMeta {
+      color: #888;
+      font-size: 0.85rem;
+      margin-top: 2px;
+    }
+    .boardTags {
+      margin-top: 4px;
+    }
+    .tag {
+      display: inline-block;
+      background: #e0eefc;
+      color: #0066cc;
+      border-radius: 10px;
+      padding: 1px 8px;
+      font-size: 0.8rem;
+      margin: 2px 2px 0 0;
+    }
+    .emptyNote {
+      color: #999;
+      font-size: 0.9rem;
     }
 
     /* チャット画面 */
@@ -114,11 +167,27 @@
 
   <!-- ホーム画面 -->
   <div id="home">
-    <p>部屋名を入力して入室してください:</p>
-    <input id="homeRoomInput" type="text" placeholder="部屋名">
-    <button id="joinBtn">入室</button>
+    <div id="searchArea">
+      <input id="searchInput" type="text" placeholder="板名や#タグで検索">
+      <button id="searchBtn">検索</button>
+    </div>
 
-    <div id="recentRooms"></div>
+    <div id="createArea">
+      <input id="newBoardName" type="text" placeholder="新しい板名">
+      <input id="newBoardTags" type="text" placeholder="#タグ1 #タグ2 (任意)">
+      <button id="createBtn">板を作る</button>
+    </div>
+
+    <div id="searchResultsSection" style="display:none;">
+      <h2>検索結果</h2>
+      <div id="searchResults" class="boardList"></div>
+    </div>
+
+    <h2>人気な板</h2>
+    <div id="popularBoards" class="boardList"></div>
+
+    <h2>最近入った板</h2>
+    <div id="recentRooms" class="boardList"></div>
   </div>
 
   <!-- チャット画面 -->
