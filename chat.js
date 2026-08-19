@@ -79,6 +79,7 @@ function tagsHtml(tags) {
 function boardCardHtml(board) {
   return `
     <div class="boardCard" data-room="${escapeHtml(board.name)}">
+      <button class="deleteBtn" data-room="${escapeHtml(board.name)}" title="この板を削除">×</button>
       <div class="boardName">${escapeHtml(board.name)}</div>
       <div class="boardMeta">👥${board.userCount ?? 0} 💬${board.messageCount ?? 0}</div>
       ${tagsHtml(board.tags)}
@@ -185,6 +186,21 @@ socket.on('boardsUpdated', (boards) => {
   renderPopularBoards();
   renderRecentRooms();
   if (searchInput.value.trim()) renderSearchResults(searchInput.value);
+});
+
+socket.on('boardDeleted', ({ name }) => {
+  if (room === name) {
+    alert(`この板「${name}」は削除されました。`);
+    chat.innerHTML = '';
+    messageInput.value = '';
+    fileInput.value = '';
+    chatContainer.style.display = 'none';
+    home.style.display = 'block';
+    room = '';
+  }
+  // 最近入った板からも消す
+  const rooms = getRecentRoomNames().filter(r => r !== name);
+  localStorage.setItem('recentRooms', JSON.stringify(rooms));
 });
 
 // ===== メッセージ表示 =====
