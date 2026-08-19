@@ -1,7 +1,7 @@
 {
   "name": "my-chat-app",
-  "version": "1.0.0",
-  "description": "2ch風チャットアプリ（部屋機能＋画像/動画対応）",
+  "version": "2.0.0",
+  "description": "2ch風チャットアプリ（部屋機能＋画像）",
   "main": "server.js",
   "type": "module",
   "scripts": {
