@@ -2,6 +2,7 @@ import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 
 const app = express();
@@ -16,9 +17,27 @@ const __dirname = path.dirname(__filename);
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 app.get("/chat.js", (req, res) => res.sendFile(path.join(__dirname, "chat.js")));
 
-// 部屋ごとのメッセージ保持
-const messages = {}; // { roomName: [{id, name, msg, type, time, fileType, file}] }
+// メッセージ保存用ファイル
+const DATA_FILE = path.join(__dirname, "messages.json");
+
+// 部屋ごとのメッセージ保持（ファイルから復元）
+let messages = {};
+if (fs.existsSync(DATA_FILE)) {
+  try {
+    messages = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
+  } catch (e) {
+    console.error("メッセージファイルの読み込みに失敗:", e);
+    messages = {};
+  }
+}
 const anonymousCounters = {}; // { roomName: lastAnonymousId }
+
+// ファイルに保存する関数
+function saveMessages() {
+  fs.writeFile(DATA_FILE, JSON.stringify(messages), (err) => {
+    if (err) console.error("メッセージファイルの保存に失敗:", err);
+  });
+}
 
 io.on("connection", (socket) => {
   let currentRoom = null;
@@ -73,7 +92,8 @@ io.on("connection", (socket) => {
     };
 
     messages[room].push(msgObj);
-    if (messages[room].length > 50) messages[room].shift(); // 最新50件のみ保持
+    if (messages[room].length > 200) messages[room].shift(); // 最新200件のみ保持
+    saveMessages();
 
     io.to(room).emit("message", msgObj);
   });
