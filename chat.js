@@ -84,10 +84,14 @@ function boardCardHtml(board) {
       ${tagsHtml(board.tags)}
     </div>`;
 }
-function attachBoardCardHandlers(container) {
-  container.querySelectorAll('.boardCard').forEach(card => {
-    card.addEventListener('click', () => enterRoom(card.dataset.room));
-  });
+function boardCardHtml(board) {
+  return `
+    <div class="boardCard" data-room="${escapeHtml(board.name)}">
+      <button class="deleteBtn" data-room="${escapeHtml(board.name)}" title="この板を削除">×</button>
+      <div class="boardName">${escapeHtml(board.name)}</div>
+      <div class="boardMeta">👥${board.userCount ?? 0} 💬${board.messageCount ?? 0}</div>
+      ${tagsHtml(board.tags)}
+    </div>`;
 }
 
 function renderPopularBoards() {
