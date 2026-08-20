@@ -1,5 +1,5 @@
 // chat.js
-const socket = io("https://2323.onrender.com");
+const socket = io("https://sanngokudoumei.onrender.com");
 let room = '';
 let userId = Math.floor(Math.random() * 1000);
 let userName = localStorage.getItem('chatUserName') || '名無しさん';
