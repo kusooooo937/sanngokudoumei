@@ -2,8 +2,8 @@ import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import path from "path";
-import fs from "fs";
 import { fileURLToPath } from "url";
+import { MongoClient } from "mongodb";
 
 const app = express();
 const server = http.createServer(app);
@@ -17,34 +17,54 @@ const __dirname = path.dirname(__filename);
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 app.get("/chat.js", (req, res) => res.sendFile(path.join(__dirname, "chat.js")));
 
-// ===== データ永続化 =====
-const MESSAGES_FILE = path.join(__dirname, "messages.json");
-const BOARDS_FILE = path.join(__dirname, "boards.json");
-
-let messages = {};
-if (fs.existsSync(MESSAGES_FILE)) {
-  try { messages = JSON.parse(fs.readFileSync(MESSAGES_FILE, "utf-8")); }
-  catch (e) { console.error("messages.json読み込み失敗:", e); messages = {}; }
+// ===== MongoDB接続 =====
+if (!process.env.MONGODB_URI) {
+  console.error("❌ MONGODB_URIが設定されていません");
+  process.exit(1);
 }
+const client = new MongoClient(process.env.MONGODB_URI);
+let db;
+let messagesCol;
+let boardsCol;
 
-// boards: { 板名: { tags: [], createdAt, lastActive, messageCount } }
-let boards = {};
-if (fs.existsSync(BOARDS_FILE)) {
-  try { boards = JSON.parse(fs.readFileSync(BOARDS_FILE, "utf-8")); }
-  catch (e) { console.error("boards.json読み込み失敗:", e); boards = {}; }
-}
-
+// メモリ上のキャッシュ(既存コードとの互換のため維持)
+let messages = {};   // { room: [msgObj, ...] }
+let boards = {};     // { name: { tags, createdAt, lastActive, messageCount } }
 const anonymousCounters = {};
 
-function saveMessages() {
-  fs.writeFile(MESSAGES_FILE, JSON.stringify(messages), (err) => {
-    if (err) console.error("messages.json保存失敗:", err);
+async function loadFromDB() {
+  const boardDocs = await boardsCol.find({}).toArray();
+  boardDocs.forEach(doc => {
+    boards[doc._id] = {
+      tags: doc.tags || [],
+      createdAt: doc.createdAt,
+      lastActive: doc.lastActive,
+      messageCount: doc.messageCount || 0,
+    };
   });
+
+  const messageDocs = await messagesCol.find({}).toArray();
+  messageDocs.forEach(doc => {
+    messages[doc._id] = doc.messages || [];
+  });
+
+  console.log(`✅ 読み込み完了: 板${boardDocs.length}件, メッセージ${messageDocs.length}部屋分`);
 }
-function saveBoards() {
-  fs.writeFile(BOARDS_FILE, JSON.stringify(boards), (err) => {
-    if (err) console.error("boards.json保存失敗:", err);
-  });
+
+function saveBoard(name) {
+  boardsCol.updateOne(
+    { _id: name },
+    { $set: boards[name] },
+    { upsert: true }
+  ).catch(err => console.error("board保存失敗:", err));
+}
+
+function saveMessages(room) {
+  messagesCol.updateOne(
+    { _id: room },
+    { $set: { messages: messages[room] } },
+    { upsert: true }
+  ).catch(err => console.error("messages保存失敗:", err));
 }
 
 // 既存の部屋がboardsに未登録なら登録する(後方互換)
@@ -58,7 +78,6 @@ function ensureBoard(name) {
     };
   }
 }
-Object.keys(messages).forEach(ensureBoard);
 
 // 現在の人数を付与した板一覧を作る
 function getBoardList() {
@@ -100,8 +119,8 @@ io.on("connection", (socket) => {
       messageCount: 0,
     };
     if (!messages[name]) messages[name] = [];
-    saveBoards();
-    saveMessages();
+    saveBoard(name);
+    saveMessages(name);
     socket.emit("createBoardResult", { ok: true, name });
     broadcastBoards();
   });
@@ -114,12 +133,11 @@ io.on("connection", (socket) => {
     delete boards[name];
     delete messages[name];
     delete anonymousCounters[name];
-    saveBoards();
-    saveMessages();
 
-    // その板に今いる人たちをホームに戻す
+    boardsCol.deleteOne({ _id: name }).catch(err => console.error("board削除失敗:", err));
+    messagesCol.deleteOne({ _id: name }).catch(err => console.error("messages削除失敗:", err));
+
     io.to(name).emit("boardDeleted", { name });
-
     broadcastBoards();
   });
 
@@ -133,7 +151,7 @@ io.on("connection", (socket) => {
     if (!anonymousCounters[room]) anonymousCounters[room] = 1;
     ensureBoard(room);
     boards[room].lastActive = Date.now();
-    saveBoards();
+    saveBoard(room);
 
     const joinMsg = {
       id: null,
@@ -174,12 +192,12 @@ io.on("connection", (socket) => {
 
     messages[room].push(msgObj);
     if (messages[room].length > 200) messages[room].shift();
-    saveMessages();
+    saveMessages(room);
 
     ensureBoard(room);
     boards[room].messageCount = messages[room].length;
     boards[room].lastActive = Date.now();
-    saveBoards();
+    saveBoard(room);
 
     io.to(room).emit("message", msgObj);
     broadcastBoards();
@@ -194,4 +212,20 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+// ===== 起動 =====
+async function main() {
+  await client.connect();
+  db = client.db(); // 接続文字列内のDB名(sanngokudoumei)を使用
+  messagesCol = db.collection("messages");
+  boardsCol = db.collection("boards");
+  console.log("✅ MongoDB接続成功");
+
+  await loadFromDB();
+
+  server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+}
+
+main().catch(err => {
+  console.error("❌ 起動失敗:", err);
+  process.exit(1);
+});
